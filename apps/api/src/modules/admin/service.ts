@@ -104,7 +104,11 @@ export async function adminUpdateUser(
     const now = deps.clock.now();
     const label = user.githubLogin;
     if (body.status && body.status !== user.status) {
-      if (user.id === actor.userId) throw new AppError("FORBIDDEN", "不能停權自己");
+      if (user.id === actor.userId) {
+        throw new AppError("VALIDATION_FAILED", "不能停權自己", {
+          errors: [{ path: "status", code: "self", message: "不能變更自己的帳號狀態" }],
+        });
+      }
       const reason = body.reason?.trim() || (body.status === "suspended" ? "管理員停權" : "");
       await tx
         .update(users)

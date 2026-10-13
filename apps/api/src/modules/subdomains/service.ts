@@ -238,7 +238,7 @@ export async function releaseSubdomain(
     }
     if (row.status === "releasing") return toSubdomainDto(tx, deps, row);
     if (row.status === "suspended") {
-      throw new AppError("FORBIDDEN", "停權中的子網域不能自行釋出，請聯絡管理員");
+      throw new AppError("SUBDOMAIN_NOT_ACTIVE", "停權中的子網域不能自行釋出，請聯絡管理員");
     }
     const updated = await markReleasing(tx, deps, row);
     await writeAudit(tx, actor, {

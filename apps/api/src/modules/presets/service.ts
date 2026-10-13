@@ -28,11 +28,12 @@ import {
 } from "../records/service.ts";
 import { loadOwnedSubdomain } from "../subdomains/service.ts";
 
-/** 後端已實作 planPreset 的所有 preset（packages/dns 的 PRESETS 標記的是合約初版的可用狀態） */
-const SUPPORTED: ReadonlySet<PresetId> = new Set(PRESETS.map((p) => p.id));
-
+/**
+ * packages/dns 的 PRESETS 的 available 是合約初版（只有 P0 平台）的狀態；後端的 planPreset
+ * 已實作全部 10 個 preset，所以對外一律回 available: true。
+ */
 export function listPresets(): Preset[] {
-  return PRESETS.map((p) => ({ ...p, available: SUPPORTED.has(p.id) }) as Preset);
+  return PRESETS.map((p) => ({ ...p, available: true }) as Preset);
 }
 
 interface ComputedPlan {
@@ -49,7 +50,6 @@ async function computePlan(
   presetId: PresetId,
   body: PresetBody,
 ): Promise<ComputedPlan> {
-  if (!SUPPORTED.has(presetId)) throw new AppError("NOT_IMPLEMENTED", "這個一鍵設定即將推出");
   const root = deps.config.ROOT_DOMAIN;
   const existing = await liveRecords(ex, sub.id);
   const existingDtos = existing.map((r) => recordDto(r, sub.name, root));

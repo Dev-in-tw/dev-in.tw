@@ -139,6 +139,13 @@ export interface RequestOptions {
   ip?: string;
 }
 
+let ipCounter = 0;
+/** 每個請求預設用不同的 IP，避免 IP 限流干擾一般測試（限流測試會明確指定 ip） */
+export function nextIp(): string {
+  ipCounter++;
+  return `100.${(ipCounter >> 16) & 255}.${(ipCounter >> 8) & 255}.${ipCounter & 255}`;
+}
+
 /** 模擬瀏覽器的同源請求（Origin、Sec-Fetch-Site、JSON body） */
 export async function request(
   t: TestContext,
@@ -150,7 +157,7 @@ export async function request(
   if (method !== "GET" && opts.origin !== null) headers.set("Origin", opts.origin ?? ORIGIN);
   if (opts.secFetchSite !== null) headers.set("Sec-Fetch-Site", opts.secFetchSite ?? "same-origin");
   if (opts.cookie) headers.set("Cookie", opts.cookie);
-  headers.set("X-Forwarded-For", opts.ip ?? "198.51.100.7");
+  headers.set("X-Forwarded-For", opts.ip ?? nextIp());
   let body: string | undefined;
   if (opts.rawBody !== undefined) body = opts.rawBody;
   else if (opts.body !== undefined) {
@@ -191,7 +198,7 @@ export function contractClient(t: TestContext, cookie?: string): Client {
     headers: () => ({
       Origin: ORIGIN,
       "Sec-Fetch-Site": "same-origin",
-      "X-Forwarded-For": "198.51.100.8",
+      "X-Forwarded-For": nextIp(),
       ...(cookie ? { Cookie: cookie } : {}),
     }),
     fetch: async (input, init) => {
