@@ -1,0 +1,26 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# test output
+coverage/
+test-results/
+playwright-report/
+
+# env and secrets (secrets live in Infisical, never in the repo)
+.env
+.env.*
+!.env.example
+
+# logs and OS files
+*.log
+.DS_Store
+
+# local agent memory stays on the machine (public repo)
+memory/

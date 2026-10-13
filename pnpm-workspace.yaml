@@ -1,0 +1,9 @@
+packages:
+  - apps/*
+  - packages/*
+
+# Supply-chain guard: only install versions published at least 3 days (4320 minutes) ago.
+minimumReleaseAge: 4320
+
+# Only these packages may run install scripts. None need one today; add an entry only when a build or test breaks without it.
+onlyBuiltDependencies: []
