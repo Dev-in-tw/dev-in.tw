@@ -1,0 +1,28 @@
+{
+  "name": "@dit/api",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Dev-in.tw API and DNS sync worker (Hono on Node 24)",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/main.ts",
+    "build": "tsdown",
+    "start": "node --enable-source-maps dist/server.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@dit/contract": "workspace:*",
+    "@dit/dns": "workspace:*",
+    "@hono/node-server": "^2.1.4",
+    "hono": "^4.13.13",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "tsdown": "^0.23.1",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}
