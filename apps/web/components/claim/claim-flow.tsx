@@ -169,7 +169,7 @@ export function ClaimFlow({ name, me }: { name: string; me: Me | null }) {
                 id={agreeId}
                 checked={agreed}
                 onChange={(e) => setAgreed(e.target.checked)}
-                required
+                required={Boolean(me)}
               />
               <label htmlFor={agreeId} className="text-sm">
                 我已閱讀並同意

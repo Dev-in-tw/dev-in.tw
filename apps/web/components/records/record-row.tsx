@@ -89,8 +89,8 @@ export function RecordRow({
   }
 
   const value = recordValue(record);
-  const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.target !== e.currentTarget || disabled || struck || isTemp) return;
+  const onKey = (e: KeyboardEvent<HTMLSpanElement>) => {
+    if (disabled || struck || isTemp) return;
     if (e.key === "Enter") {
       e.preventDefault();
       onEdit();
@@ -104,9 +104,6 @@ export function RecordRow({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, height: 0 }}
       role="row"
-      tabIndex={0}
-      aria-label={`${record.name} ${record.type} ${value}`}
-      onKeyDown={onKey}
       onMouseEnter={() => onHover(record.name)}
       onMouseLeave={() => onHover(null)}
       onFocus={() => onHover(record.name)}
@@ -123,10 +120,16 @@ export function RecordRow({
       <span role="cell" className="text-xs text-ink-muted md:hidden">
         NAME
       </span>
+      {/* 名稱格是「點列或按 Enter 進入行內編輯」的入口；不讓整列可聚焦，避免和列內按鈕重疊 */}
       <span
         role="cell"
+        tabIndex={disabled || struck || isTemp ? undefined : 0}
+        onKeyDown={onKey}
+        onClick={() => !disabled && !struck && !isTemp && onEdit()}
+        aria-label={`${record.name} ${record.type} ${value}，按 Enter 編輯`}
+        data-testid="record-name"
         className={cn(
-          "min-w-0 truncate md:px-3 md:py-2.5",
+          "min-w-0 cursor-text truncate rounded-sm outline-none focus-visible:bg-magpie-soft focus-visible:ring-2 focus-visible:ring-magpie md:px-3 md:py-2.5",
           struck && "line-through decoration-danger",
         )}
         title={record.fqdn}
@@ -200,7 +203,7 @@ export function RecordRow({
           type="button"
           onClick={onEdit}
           disabled={disabled || struck || isTemp}
-          className="inline-flex size-8 items-center justify-center rounded-md text-ink-muted hover:bg-surface-2 hover:text-ink disabled:opacity-30"
+          className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-ink-muted hover:bg-surface-2 hover:text-ink disabled:opacity-30"
           aria-label={`編輯 ${record.name} ${record.type}`}
         >
           <Pencil className="size-4" aria-hidden />
@@ -209,14 +212,19 @@ export function RecordRow({
           type="button"
           onClick={onDelete}
           disabled={disabled || struck || isTemp}
-          className="inline-flex size-8 items-center justify-center rounded-md text-ink-muted hover:bg-danger-soft hover:text-danger disabled:opacity-30"
+          className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-ink-muted hover:bg-danger-soft hover:text-danger disabled:opacity-30"
           aria-label={`刪除 ${record.name} ${record.type}`}
         >
           <Trash2 className="size-4" aria-hidden />
         </button>
       </span>
       {record.syncStatus === "error" ? (
-        <div id={errorId} className="expand col-span-2 md:col-span-6" data-open={errorOpen}>
+        <div
+          id={errorId}
+          role="cell"
+          className="expand col-span-2 md:col-span-6"
+          data-open={errorOpen}
+        >
           <div className="mx-0 mb-3 flex flex-wrap items-center gap-3 rounded-md border border-danger bg-danger-soft px-3 py-2 font-sans text-sm md:mx-3">
             <span className="zone font-semibold text-danger">
               {record.syncError?.code ?? "ERROR"}

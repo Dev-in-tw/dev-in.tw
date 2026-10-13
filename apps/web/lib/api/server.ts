@@ -1,6 +1,7 @@
 import "server-only";
 import { type Client, ApiError as ContractApiError, createClient, type Me } from "@dit/contract";
 import { cookies, headers as requestHeaders } from "next/headers";
+import { redirect } from "next/navigation";
 import { cache } from "react";
 
 /** RSC 在 server 端打 API：`${API_INTERNAL_URL}/api/v1`，並轉發瀏覽器的 cookie */
@@ -58,3 +59,21 @@ export async function hasSessionCookie(): Promise<boolean> {
 }
 
 export { ContractApiError };
+
+/**
+ * Next 會平行 render layout 與 page：session 剛失效時，page 的 API 呼叫可能比 layout 的
+ * getMe() 先拿到 401。統一在這裡轉成導向登入頁，而不是丟出未處理的錯誤。
+ */
+export async function authed<T>(promise: Promise<T>): Promise<T> {
+  try {
+    return await promise;
+  } catch (error) {
+    if (
+      error instanceof ContractApiError &&
+      (error.code === "UNAUTHENTICATED" || error.code === "ACCOUNT_SUSPENDED")
+    ) {
+      redirect(error.code === "ACCOUNT_SUSPENDED" ? "/login?error=suspended" : "/login");
+    }
+    throw error;
+  }
+}

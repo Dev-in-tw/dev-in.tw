@@ -1,7 +1,7 @@
 "use client";
 
-import { Check } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
+import { Checkbox } from "@/components/ui/field.tsx";
 import { cn } from "@/lib/cn.ts";
 
 declare global {
@@ -75,34 +75,25 @@ export function Turnstile({
 
   if (isMock) {
     return (
-      <label
-        htmlFor={id}
+      <div
         className={cn(
-          "flex w-fit cursor-pointer items-center gap-3 rounded-md border px-4 py-3 text-sm transition-colors",
+          "flex w-fit items-center gap-3 rounded-md border px-4 py-3 text-sm transition-colors",
           mockChecked ? "border-signal bg-signal-soft" : "border-field bg-surface",
         )}
       >
-        <input
+        <Checkbox
           id={id}
-          type="checkbox"
-          className="peer sr-only"
           checked={mockChecked}
           onChange={(e) => {
             setMockChecked(e.target.checked);
             onToken(e.target.checked ? "XXXX.DUMMY.TOKEN.XXXX" : null);
           }}
         />
-        <span
-          aria-hidden
-          className="inline-flex size-6 items-center justify-center rounded border border-field bg-bg peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-magpie"
-        >
-          {mockChecked ? <Check className="size-4 text-signal" /> : null}
-        </span>
-        <span>
+        <label htmlFor={id} className="cursor-pointer">
           我是人類
           <span className="zone ml-2 text-xs text-ink-muted">turnstile (mock)</span>
-        </span>
-      </label>
+        </label>
+      </div>
     );
   }
 

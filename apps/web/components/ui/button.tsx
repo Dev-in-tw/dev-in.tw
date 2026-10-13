@@ -18,7 +18,7 @@ export const buttonVariants = cva(
           "border border-field bg-bg text-ink hover:border-ink hover:bg-surface active:translate-y-px",
         ghost: "text-ink hover:bg-surface-2",
         danger: "border border-danger text-danger hover:bg-danger-soft",
-        "danger-solid": "bg-danger text-white hover:bg-[color-mix(in_oklch,var(--danger)_85%,black)]",
+        "danger-solid": "bg-danger text-bg hover:bg-[color-mix(in_oklch,var(--danger)_88%,var(--ink))]",
         link: "h-auto px-0 text-magpie underline decoration-1 underline-offset-4 hover:decoration-beak",
       },
       size: {

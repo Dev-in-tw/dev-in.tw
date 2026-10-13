@@ -1,7 +1,7 @@
 import { PresetPanel } from "@/components/subdomain/presets.tsx";
 import { PropagationPanel } from "@/components/subdomain/propagation.tsx";
 import { loadSubdomain } from "@/lib/api/load.ts";
-import { getServerApi } from "@/lib/api/server.ts";
+import { authed, getServerApi } from "@/lib/api/server.ts";
 
 export default async function SubdomainOverviewPage({
   params,
@@ -11,7 +11,7 @@ export default async function SubdomainOverviewPage({
   const { name } = await params;
   const [sub, records] = await Promise.all([
     loadSubdomain(name),
-    getServerApi()("listRecords", { params: { name } }),
+    authed(getServerApi()("listRecords", { params: { name } })),
   ]);
   return (
     <div className="grid gap-8 lg:grid-cols-[1.4fr_1fr]">

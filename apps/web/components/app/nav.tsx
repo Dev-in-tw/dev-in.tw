@@ -126,7 +126,7 @@ export function AppNav() {
                 <item.icon className="size-4" aria-hidden />
                 {item.label}
                 {item.badge ? (
-                  <span className="zone ml-auto rounded-full bg-beak px-1.5 text-xs text-white">
+                  <span className="zone ml-auto rounded-full bg-beak px-1.5 text-xs text-bg">
                     {item.badge}
                     <span className="sr-only"> 筆待處理</span>
                   </span>

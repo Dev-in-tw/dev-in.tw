@@ -1,15 +1,15 @@
 import { Suspense } from "react";
 import { RecordEditor } from "@/components/records/editor.tsx";
 import { loadSubdomain } from "@/lib/api/load.ts";
-import { getServerApi } from "@/lib/api/server.ts";
+import { authed, getServerApi } from "@/lib/api/server.ts";
 
 export default async function RecordsPage({ params }: { params: Promise<{ name: string }> }) {
   const { name } = await params;
   const api = getServerApi();
   const [sub, records, mine] = await Promise.all([
     loadSubdomain(name),
-    api("listRecords", { params: { name } }),
-    api("listSubdomains"),
+    authed(api("listRecords", { params: { name } })),
+    authed(api("listSubdomains")),
   ]);
   return (
     <Suspense>

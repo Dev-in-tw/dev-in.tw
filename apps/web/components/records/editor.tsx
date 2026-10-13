@@ -69,7 +69,15 @@ export function RecordEditor({
   const [sheetOpen, setSheetOpen] = useState(false);
   const deleteTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const tempSeq = useRef(0);
+  // 樂觀插入的列換成伺服器的 id 後沿用原本的 React key，避免 AnimatePresence 把它當成「刪除＋新增」
+  const stableKeys = useRef(new Map<string, string>());
   const formId = useId();
+  // 指令面板的 add 會帶著 ?add= 導到這頁；已經在這頁時也要套用新的預填
+  const addParam = search.toString();
+  useEffect(() => {
+    if (new URLSearchParams(addParam).get("add"))
+      setDraft(prefill(new URLSearchParams(addParam), allowedTypes));
+  }, [addParam, allowedTypes]);
   const autoFocusField = search.get("add")
     ? search.get("value")
       ? undefined
@@ -115,6 +123,7 @@ export function RecordEditor({
       }));
     },
     onSuccess: (record, { tempId }) => {
+      stableKeys.current.set(record.id, tempId);
       setRecords((list) => ({
         ...list,
         items: list.items.map((r) => (r.id === tempId ? record : r)),
@@ -275,7 +284,7 @@ export function RecordEditor({
           role="table"
           aria-label={`${subdomain.fqdn} 的 DNS 紀錄`}
           aria-rowcount={visible.length + 1}
-          className="zone mt-4 grid grid-cols-1 overflow-hidden rounded-md border border-rule bg-bg text-[0.92rem] shadow-[4px_4px_0_var(--shadow)] md:grid-cols-[minmax(7rem,1.1fr)_4.5rem_4.5rem_minmax(10rem,2fr)_8.5rem_5.5rem]"
+          className="zone mt-4 grid grid-cols-1 overflow-hidden rounded-md border border-rule bg-bg text-[0.92rem] shadow-[4px_4px_0_var(--shadow)] md:grid-cols-[minmax(7rem,1.1fr)_4.5rem_4.5rem_minmax(10rem,2fr)_8.5rem_7.5rem]"
         >
           <div
             role="row"
@@ -302,7 +311,7 @@ export function RecordEditor({
           <AnimatePresence initial={false}>
             {visible.map((record) => (
               <RecordRow
-                key={record.id}
+                key={stableKeys.current.get(record.id) ?? record.id}
                 record={record}
                 subdomain={subdomain}
                 editing={editingId === record.id}
