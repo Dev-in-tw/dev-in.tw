@@ -31,14 +31,38 @@ jobs:
       - run: pnpm -r test
       - run: pnpm -r build
 
-  # Owned by WP-A: add api-only steps (e.g. Postgres service tests) here.
+  # Owned by WP-A: api tests against PostgreSQL 18 (production version) and the api image.
   api:
-    name: api image
+    name: api (postgres 18, image)
     needs: checks
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: dit
+          POSTGRES_PASSWORD: dit
+          POSTGRES_DB: dit
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U dit -d dit"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: api tests with coverage (PostgreSQL 18)
+        run: pnpm --filter @dit/api test:coverage
+        env:
+          TEST_DATABASE_URL: postgres://dit:dit@127.0.0.1:5432/dit
       - uses: docker/setup-buildx-action@v4
       - uses: docker/build-push-action@v7
         with:
