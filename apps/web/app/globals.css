@@ -164,7 +164,7 @@
   }
 
   ::selection {
-    background: color-mix(in oklch, var(--beak) 28%, transparent);
+    background: color-mix(in srgb, var(--beak) 28%, transparent);
     color: var(--ink);
   }
 
@@ -207,7 +207,7 @@
 /* 16px 點陣格背景，用 mask 淡出 */
 @utility bg-dots {
   background-image: radial-gradient(
-    color-mix(in oklch, var(--ink) 16%, transparent) 1px,
+    color-mix(in srgb, var(--ink) 16%, transparent) 1px,
     transparent 1.2px
   );
   background-size: 16px 16px;
@@ -222,7 +222,7 @@
   color: var(--magpie);
   text-decoration: underline;
   text-decoration-thickness: 1px;
-  text-decoration-color: color-mix(in oklch, var(--magpie) 40%, transparent);
+  text-decoration-color: color-mix(in srgb, var(--magpie) 40%, transparent);
   transition: text-decoration-color var(--dur-2) var(--ease-out);
   &:hover {
     text-decoration-color: var(--beak);
@@ -241,7 +241,7 @@
   [data-glow] {
     background-image: radial-gradient(
       240px circle at var(--x, -999px) var(--y, -999px),
-      color-mix(in oklch, var(--magpie) 10%, transparent),
+      color-mix(in srgb, var(--magpie) 10%, transparent),
       transparent
     );
   }
@@ -273,7 +273,7 @@
 }
 @keyframes flash {
   from {
-    background-color: color-mix(in oklch, var(--signal) 14%, transparent);
+    background-color: color-mix(in srgb, var(--signal) 14%, transparent);
   }
   to {
     background-color: transparent;
@@ -366,11 +366,9 @@
 @keyframes reveal {
   from {
     clip-path: inset(0 100% 0 0);
-    opacity: 0.2;
   }
   to {
     clip-path: inset(0);
-    opacity: 1;
   }
 }
 @keyframes draw-line {

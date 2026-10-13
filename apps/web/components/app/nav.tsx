@@ -83,7 +83,7 @@ export function AppNav() {
   return (
     <>
       {/* 手機頂列 */}
-      <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-rule bg-[color-mix(in_oklch,var(--bg)_90%,transparent)] px-4 backdrop-blur lg:hidden">
+      <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-rule bg-[color-mix(in_srgb,var(--bg)_90%,transparent)] px-4 backdrop-blur lg:hidden">
         <Link href="/dashboard" aria-label="控制台首頁">
           <Logo />
         </Link>

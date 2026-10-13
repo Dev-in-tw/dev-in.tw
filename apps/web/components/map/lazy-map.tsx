@@ -18,11 +18,20 @@ export function LazyTaiwanMap(props: {
   const [ready, setReady] = useState(false);
   const reducedMotion = useReducedMotion();
 
+  // 等 load 事件之後再等一次 idle，才建立 WebGL context（shader 編譯會佔用主執行緒）
   useEffect(() => {
-    const idle = window.requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 200));
+    const idle = window.requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 300));
     const cancel = window.cancelIdleCallback ?? window.clearTimeout;
-    const id = idle(() => setReady(true), { timeout: 1500 });
-    return () => cancel(id);
+    let id: number | undefined;
+    const start = () => {
+      id = idle(() => setReady(true), { timeout: 3000 });
+    };
+    if (document.readyState === "complete") start();
+    else window.addEventListener("load", start, { once: true });
+    return () => {
+      window.removeEventListener("load", start);
+      if (id !== undefined) cancel(id);
+    };
   }, []);
 
   if (!ready) return null;

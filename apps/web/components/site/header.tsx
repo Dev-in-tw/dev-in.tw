@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Logo } from "@/components/brand/logo.tsx";
 import { CommandTrigger } from "@/components/command/trigger.tsx";
-import { ThemeToggle } from "@/components/theme-toggle.tsx";
+import { ThemeCycle } from "@/components/theme-cycle.tsx";
 import { buttonVariants } from "@/components/ui/button.tsx";
 import { cn } from "@/lib/cn.ts";
 
@@ -15,7 +15,7 @@ export function SiteHeader({ className }: { className?: string }) {
   return (
     <header
       className={cn(
-        "sticky top-0 z-40 border-b border-rule bg-[color-mix(in_oklch,var(--bg)_88%,transparent)] backdrop-blur-md",
+        "sticky top-0 z-40 border-b border-rule bg-[color-mix(in_srgb,var(--bg)_88%,transparent)] backdrop-blur-md",
         className,
       )}
     >
@@ -36,7 +36,7 @@ export function SiteHeader({ className }: { className?: string }) {
         </nav>
         <div className="ml-auto flex items-center gap-1.5">
           <CommandTrigger />
-          <ThemeToggle />
+          <ThemeCycle />
           <Link href="/dashboard" className={cn(buttonVariants({ size: "sm" }), "ml-1")}>
             控制台
           </Link>

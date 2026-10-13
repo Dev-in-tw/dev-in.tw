@@ -205,7 +205,7 @@ export function CommandPalette({
   return (
     <D.Root open={open} onOpenChange={onOpenChange}>
       <D.Portal>
-        <D.Overlay className="enter-fade fixed inset-0 z-[60] bg-[color-mix(in_oklch,var(--ink)_40%,transparent)] backdrop-blur-[2px]" />
+        <D.Overlay className="enter-fade fixed inset-0 z-[60] bg-[color-mix(in_srgb,var(--ink)_40%,transparent)] backdrop-blur-[2px]" />
         <D.Content
           aria-describedby={undefined}
           className="enter-pop fixed top-[12vh] left-1/2 z-[60] w-[min(94vw,40rem)] -translate-x-1/2 overflow-hidden rounded-[var(--radius-dialog)] border border-rule bg-bg shadow-[8px_8px_0_var(--shadow)] dark:bg-[oklch(0.13_0.015_262)]"

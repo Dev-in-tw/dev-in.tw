@@ -19,7 +19,7 @@ export function DialogContent({
 }: ComponentProps<typeof D.Content> & { title: ReactNode; description?: ReactNode; hideClose?: boolean }) {
   return (
     <D.Portal>
-      <D.Overlay className="enter-fade fixed inset-0 z-50 bg-[color-mix(in_oklch,var(--ink)_35%,transparent)] backdrop-blur-[1px]" />
+      <D.Overlay className="enter-fade fixed inset-0 z-50 bg-[color-mix(in_srgb,var(--ink)_35%,transparent)] backdrop-blur-[1px]" />
       <D.Content
         className={cn(
           "enter-pop fixed top-1/2 left-1/2 z-50 w-[min(92vw,32rem)] -translate-x-1/2 -translate-y-1/2 rounded-[var(--radius-dialog)] border border-rule bg-bg p-6 shadow-[6px_6px_0_var(--shadow)] focus-visible:outline-none",
@@ -55,7 +55,7 @@ export function SheetContent({
 }: ComponentProps<typeof D.Content> & { title: ReactNode }) {
   return (
     <D.Portal>
-      <D.Overlay className="enter-fade fixed inset-0 z-50 bg-[color-mix(in_oklch,var(--ink)_35%,transparent)]" />
+      <D.Overlay className="enter-fade fixed inset-0 z-50 bg-[color-mix(in_srgb,var(--ink)_35%,transparent)]" />
       <D.Content
         aria-describedby={undefined}
         className={cn(

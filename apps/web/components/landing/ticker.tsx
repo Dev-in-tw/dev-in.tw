@@ -25,9 +25,8 @@ export function Ticker() {
       <span aria-hidden className="text-rule">
         ·
       </span>
-      <a href={`https://${m.fqdn}`} className="text-ink hover:text-magpie" rel="noreferrer">
-        {m.fqdn}
-      </a>
+      {/* 跑馬燈只是展示，不放連結（移動中的連結難以點選，也會和暫停按鈕重疊）；成員牆才有連結 */}
+      <span className="text-ink">{m.fqdn}</span>
       <span className="text-ink-muted">加入</span>
     </li>
   ));
@@ -46,7 +45,7 @@ export function Ticker() {
           }}
         >
           <ul className="flex">{row}</ul>
-          <ul className="flex" aria-hidden>
+          <ul className="flex" aria-hidden inert>
             {row}
           </ul>
         </div>
@@ -57,7 +56,7 @@ export function Ticker() {
           setPaused(!stopped);
           if (prefs.motionPaused) setPref("motionPaused", false);
         }}
-        className="mr-2 inline-flex size-8 shrink-0 items-center justify-center rounded-md text-ink-muted hover:bg-surface-2 hover:text-ink"
+        className="mx-2 inline-flex size-9 shrink-0 items-center justify-center rounded-md text-ink-muted hover:bg-surface-2 hover:text-ink"
         aria-label={stopped ? "繼續播放跑馬燈" : "暫停跑馬燈"}
         aria-pressed={stopped}
       >
