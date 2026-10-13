@@ -71,6 +71,8 @@ export async function setSetting<K extends keyof SettingsShape>(
   key: K,
   value: SettingsShape[K],
 ): Promise<void> {
+  // jsonb 欄位不接受 SQL NULL：設成 null 等於回到預設值
+  if (value === null) return deleteSetting(ex, key);
   await ex
     .insert(settings)
     .values({ key, value })

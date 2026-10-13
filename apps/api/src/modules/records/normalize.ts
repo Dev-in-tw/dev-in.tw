@@ -22,3 +22,28 @@ export function normalizeRecordInput(input: RecordInput): RecordInput {
       return { ...input, name };
   }
 }
+
+const isObject = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+
+/** 驗證前的寬鬆正規化：只處理字串欄位，型別不對的值原樣交給 zod 回報 */
+export function prenormalizeRecordBody(raw: unknown): unknown {
+  if (!isObject(raw)) return raw;
+  const out: Record<string, unknown> = { ...raw };
+  if (typeof out.name === "string")
+    out.name = out.name.trim().toLowerCase().replace(/\.$/, "") || "@";
+  for (const key of ["target", "exchange"]) {
+    const value = out[key];
+    if (typeof value === "string") out[key] = value.trim().toLowerCase().replace(/\.$/, "");
+  }
+  if (typeof out.address === "string") out.address = out.address.trim().toLowerCase();
+  if (typeof out.type === "string") out.type = out.type.trim().toUpperCase();
+  return out;
+}
+
+export function prenormalizePresetBody(raw: unknown): unknown {
+  if (!isObject(raw)) return raw;
+  return typeof raw.recordName === "string"
+    ? { ...raw, recordName: raw.recordName.trim().toLowerCase() }
+    : raw;
+}

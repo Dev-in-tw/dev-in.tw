@@ -44,6 +44,8 @@ export interface RouteOptions {
   rateLimits?: readonly RateRule[];
   /** 停權中的帳號也能呼叫（例如登出） */
   allowSuspended?: boolean;
+  /** 進入 zod 驗證前的正規化（PLAN §5.3：小寫、去掉結尾的點；前端送出前也會做） */
+  normalizeBody?: (raw: unknown) => unknown;
 }
 
 export const toHonoPath = (path: string): string => `/v1${path.replace(/\{(\w+)\}/g, ":$1")}`;
@@ -134,7 +136,10 @@ export function define<N extends EndpointName>(
     if (ep.body) {
       const json = await readJson(c);
       rawBody = json.raw;
-      const parsed = ep.body.safeParse(json.value ?? {});
+      const value = json.value ?? {};
+      const parsed = ep.body.safeParse(
+        options.normalizeBody ? options.normalizeBody(value) : value,
+      );
       if (!parsed.success)
         throw new AppError("VALIDATION_FAILED", undefined, { errors: zodIssues(parsed.error) });
       body = parsed.data;

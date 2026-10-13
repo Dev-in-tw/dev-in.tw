@@ -1,6 +1,8 @@
+import { normalizeLabel } from "@dit/dns";
 import { listSubdomainActivity } from "../../modules/identity/me.ts";
 import { applyPreset, planPresetFor } from "../../modules/presets/service.ts";
 import { getPropagation } from "../../modules/propagation/service.ts";
+import { prenormalizePresetBody, prenormalizeRecordBody } from "../../modules/records/normalize.ts";
 import {
   createRecord,
   deleteRecord,
@@ -29,6 +31,10 @@ export function subdomainRoutes(reg: Registry): void {
     ({ c, user, body, actor }) => createSubdomain(c.get("deps"), user, body, actor),
     {
       rateLimits: [RULES.createSubdomain],
+      normalizeBody: (raw) =>
+        raw && typeof raw === "object" && typeof (raw as { name?: unknown }).name === "string"
+          ? { ...raw, name: normalizeLabel((raw as { name: string }).name) }
+          : raw,
     },
   );
   define(reg, "getSubdomain", ({ c, user, params }) =>
@@ -60,16 +66,14 @@ export function subdomainRoutes(reg: Registry): void {
     "createRecord",
     ({ c, user, params, body, actor }) =>
       createRecord(c.get("deps"), user, params.name, body, actor),
-    {
-      rateLimits: RECORD_WRITE_RULES,
-    },
+    { rateLimits: RECORD_WRITE_RULES, normalizeBody: prenormalizeRecordBody },
   );
   define(
     reg,
     "replaceRecord",
     ({ c, user, params, body, ifMatch, actor }) =>
       replaceRecord(c.get("deps"), user, params.name, params.recordId, body, ifMatch, actor),
-    { rateLimits: RECORD_WRITE_RULES },
+    { rateLimits: RECORD_WRITE_RULES, normalizeBody: prenormalizeRecordBody },
   );
   define(
     reg,
@@ -85,15 +89,19 @@ export function subdomainRoutes(reg: Registry): void {
     { rateLimits: RECORD_WRITE_RULES },
   );
 
-  define(reg, "planPreset", ({ c, user, params, body }) =>
-    planPresetFor(c.get("deps"), user, params.name, params.presetId, body),
+  define(
+    reg,
+    "planPreset",
+    ({ c, user, params, body }) =>
+      planPresetFor(c.get("deps"), user, params.name, params.presetId, body),
+    { normalizeBody: prenormalizePresetBody },
   );
   define(
     reg,
     "applyPreset",
     ({ c, user, params, body, actor }) =>
       applyPreset(c.get("deps"), user, params.name, params.presetId, body, actor),
-    { rateLimits: [RULES.presetApply] },
+    { rateLimits: [RULES.presetApply], normalizeBody: prenormalizePresetBody },
   );
 
   define(reg, "createTransfer", ({ c, user, params, body, actor }) =>
