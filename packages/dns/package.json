@@ -1,0 +1,22 @@
+{
+  "name": "@dit/dns",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Dev-in.tw DNS rules: pure functions shared by the API and the web app (no IO)",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@dit/contract": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}
