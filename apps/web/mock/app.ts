@@ -18,6 +18,7 @@ import {
   endpoints,
   type FieldIssue,
   type Me,
+  type PresetId,
   type Problem,
   type Propagation,
   problemType,
@@ -28,6 +29,7 @@ import {
   type Transfer,
 } from "@dit/contract";
 import { ROOT_DOMAIN, responses } from "@dit/contract/fixtures";
+import { PRESETS, planPreset as planPresetRules } from "@dit/dns";
 import { type Context, Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import type { z } from "zod";
@@ -128,7 +130,7 @@ function currentSession(c: Context): { session: MockSession; user: MockUser } | 
 
 function createSession(c: Context, user: MockUser): MockSession {
   const session: MockSession = {
-    id: `s_${nextId("session").slice(-6)}`,
+    id: nextId("session"),
     token: crypto.randomUUID(),
     userId: user.id,
     userAgent: c.req.header("user-agent") ?? null,
@@ -415,8 +417,15 @@ const handlers: { [N in EndpointName]: Handler<N> } = {
     body: paged(directory(origin), query.limit, query.cursor),
   }),
   checkAvailability: ({ params, user }) => ({ body: availability(params.name, user) }),
+  // 真實後端 10 個 preset 都已支援
   listPresets: () => ({
-    body: { items: responses.listPresets.items.map((p) => ({ ...p, params: [...p.params] })) },
+    body: {
+      items: PRESETS.map((p) => ({
+        ...p,
+        available: true,
+        params: p.params.map((x) => ({ ...x })),
+      })),
+    },
   }),
   createReport: ({ body, user }) => {
     if (body.turnstileToken === "fail") fail("TURNSTILE_FAILED", "人機驗證失敗，請再試一次");
@@ -1154,51 +1163,32 @@ function loginAs(login: string, role: "user" | "admin", ageDays: number): MockUs
   return user;
 }
 
-const PRESET_TARGETS: Record<string, (p: Record<string, string>, login: string) => string | null> =
-  {
-    "github-pages": (p, login) => `${(p.githubUser || login).toLowerCase()}.github.io`,
-    vercel: (p) => p.target || "cname.vercel-dns.com",
-    netlify: (p) => (p.site ? `${p.site}.netlify.app` : null),
-    "cloudflare-pages": (p) => (p.project ? `${p.project}.pages.dev` : null),
-  };
-
 function planPreset(
-  presetId: string,
+  presetId: PresetId,
   body: { recordName: string; params: Record<string, string> },
   s: MockSubdomain,
   u: MockUser,
 ): ResponseOf<"planPreset"> {
-  const make = PRESET_TARGETS[presetId];
-  if (!make) fail("PRESET_PARAMS_INVALID", "這個一鍵設定即將推出");
-  const target = (make as NonNullable<typeof make>)(body.params, u.githubLogin);
-  if (!target) {
-    fail("PRESET_PARAMS_INVALID", "請填寫必要的欄位", [
-      { path: "params", code: "REQUIRED", message: "必填" },
-    ]);
+  const result = planPresetRules(presetId, body.params, {
+    sub: s.name,
+    root: ROOT_DOMAIN,
+    recordName: body.recordName,
+    githubLogin: u.githubLogin,
+    existing: (state.records.get(s.name) ?? []).filter((r) => r.syncStatus !== "deleting"),
+  });
+  if ("ok" in result) {
+    const violations = result.ok ? [] : result.violations;
+    return fail(
+      "PRESET_PARAMS_INVALID",
+      violations[0]?.message ?? "一鍵設定的參數不正確",
+      violations,
+    );
   }
-  const name = body.recordName;
-  const creates: RecordInput[] = [{ type: "CNAME", name, ttl: 1, target: target as string }];
-  const extra = presetId === "github-pages" ? body.params.verifyToken : body.params.verifyTxt;
-  if (extra) {
-    const txtName =
-      presetId === "github-pages"
-        ? `_github-pages-challenge-${(body.params.githubUser || u.githubLogin).toLowerCase()}`
-        : "_vercel";
-    creates.push({
-      type: "TXT",
-      name: name === "@" ? txtName : `${txtName}.${name}`,
-      ttl: 1,
-      value: extra,
-    });
-  }
-  const list = state.records.get(s.name) ?? [];
-  const deletes = list.filter((r) => r.name === name && r.syncStatus !== "deleting");
-  const warnings: string[] = [];
-  if (deletes.length > 0) {
-    const labels = deletes.map((r) => `${r.name} ${r.type}`).join("、");
-    warnings.push(`現有的 ${labels} 會和 CNAME 衝突（CNAME 不能與其他紀錄同名），套用時一併刪除`);
-  }
-  return { creates, deletes: deletes.map((r) => ({ ...r })), warnings };
+  return {
+    creates: result.creates,
+    deletes: result.deletes.map((r) => ({ ...r })),
+    warnings: result.warnings,
+  };
 }
 
 const RESOLVERS = [
@@ -1278,7 +1268,7 @@ function csrf(c: Context) {
 export function createMockApp(): Hono {
   const app = new Hono();
 
-  app.get("/api/healthz", (c) => c.json({ ok: true }));
+  app.get("/api/healthz", (c) => c.json({ ok: true, db: "ok" }));
   app.get("/api/readyz", (c) => c.json({ ok: true }));
 
   app.post("/api/__mock/reset", (c) => {

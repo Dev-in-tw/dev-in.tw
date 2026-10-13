@@ -1,6 +1,6 @@
 import "server-only";
 import { type Client, ApiError as ContractApiError, createClient, type Me } from "@dit/contract";
-import { cookies } from "next/headers";
+import { cookies, headers as requestHeaders } from "next/headers";
 import { cache } from "react";
 
 /** RSC 在 server 端打 API：`${API_INTERNAL_URL}/api/v1`，並轉發瀏覽器的 cookie */
@@ -14,12 +14,20 @@ export const getServerApi = cache((): Client => {
     baseUrl: internalBase(),
     validateResponses: process.env.NODE_ENV !== "production",
     async headers(): Promise<Record<string, string>> {
-      const jar = await cookies();
+      const [jar, incoming] = await Promise.all([cookies(), requestHeaders()]);
+      const out: Record<string, string> = {};
       const cookie = jar
         .getAll()
         .map((c) => `${c.name}=${c.value}`)
         .join("; ");
-      return cookie ? { cookie } : {};
+      if (cookie) out.cookie = cookie;
+      // 原樣轉發 X-Forwarded-For：API 以 TRUSTED_PROXY_HOPS 從右數取 client IP 做限流，
+      // 少了它所有訪客會共用 web 容器的 IP 額度
+      for (const name of ["x-forwarded-for", "x-request-id", "user-agent", "accept-language"]) {
+        const value = incoming.get(name);
+        if (value) out[name] = value;
+      }
+      return out;
     },
   });
 });
