@@ -13,6 +13,7 @@ import {
   backoffDelay,
   claimJobs,
   completeJob,
+  enqueue,
   MAX_ATTEMPTS,
   markDead,
   rescheduleJob,
@@ -250,6 +251,15 @@ export class SyncWorker {
         })
         .where(eq(dnsRecords.id, record.id))
         .returning();
+      // 寫入 provider 的期間使用者又改了這筆紀錄：保持 pending 並重新排入，下一輪寫入最新版本
+      if (updated?.syncStatus === "pending") {
+        await enqueue(tx, {
+          kind: "upsert_record",
+          recordId: record.id,
+          subdomainId: sub.id,
+          runAt: clock.now(),
+        });
+      }
       if (updated) {
         await this.#deps.bus.publish(tx, [sub.ownerId], {
           type: "record.sync",
