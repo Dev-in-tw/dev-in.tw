@@ -16,6 +16,7 @@ import { seedReservedNames } from "./db/seed.ts";
 import { type Clock, systemClock } from "./lib/clock.ts";
 import type { Logger } from "./lib/logger.ts";
 import { HOUSEKEEPING_INTERVAL_MS, runHousekeeping } from "./modules/housekeeping.ts";
+import { asProviderError } from "./sync/errors.ts";
 import { EventBus } from "./sync/events-bus.ts";
 import type { DnsProvider } from "./sync/provider-port.ts";
 import { importZoneNames, reconcile, refreshZoneSnapshot } from "./sync/reconciler.ts";
@@ -87,8 +88,33 @@ export function createDeps(
 }
 
 /**
- * 啟動前的準備：migrate → 保留字種子 → 確認 DNS zone（名稱不符就拒絕啟動）→ 匯入 zone 既有名稱 → 快照。
- * 讀不到 provider 時（暫時性錯誤）只記錄警告，不阻擋啟動；zone 名稱不符則一定拒絕。
+ * 讀取 zone 資訊：暫時性錯誤（Cloudflare 短暫故障）以 1、2、4、8 秒退避重試，避免容器重啟時
+ * 被短暫的上游問題卡住；認證錯誤或重試用完才拒絕啟動。
+ */
+async function zoneInfoWithRetry(deps: Deps, delays: readonly number[] = [1000, 2000, 4000, 8000]) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await deps.provider.zoneInfo();
+    } catch (error) {
+      const providerError = asProviderError(error);
+      const delay = delays[attempt];
+      if (providerError.kind !== "transient" || delay === undefined) {
+        throw new StartupError(
+          `無法讀取 DNS zone（${deps.config.DNS_PROVIDER} ${deps.config.CLOUDFLARE_ZONE_ID ?? ""}）：${providerError.providerCode}`,
+        );
+      }
+      deps.logger.warn(
+        { attempt: attempt + 1, provider_error_code: providerError.providerCode },
+        "zone info failed; retrying",
+      );
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+}
+
+/**
+ * 啟動前的準備：migrate → 保留字種子 → 確認 DNS zone（讀不到或名稱不符就拒絕啟動）→
+ * 匯入 zone 既有名稱 → 快照。後兩步失敗只記錄警告，下一輪對帳會再做。
  */
 export async function prepare(deps: Deps): Promise<void> {
   const { logger, config } = deps;
@@ -97,17 +123,7 @@ export async function prepare(deps: Deps): Promise<void> {
   const seeded = await seedReservedNames(deps.db, config.RESERVED_PRIVATE_SEED_FILE);
   if (seeded > 0) logger.info({ seeded }, "reserved names seeded");
 
-  let zone: Awaited<ReturnType<DnsProvider["zoneInfo"]>>;
-  try {
-    zone = await deps.provider.zoneInfo();
-  } catch (error) {
-    if (config.DNS_PROVIDER === "cloudflare") {
-      throw new StartupError(
-        `無法讀取 Cloudflare zone ${config.CLOUDFLARE_ZONE_ID}：${(error as Error).message}`,
-      );
-    }
-    throw error;
-  }
+  const zone = await zoneInfoWithRetry(deps);
   if (zone.name.toLowerCase() !== config.ROOT_DOMAIN) {
     throw new StartupError(
       `CLOUDFLARE_ZONE_ID 對應的 zone 是 ${zone.name}，與 ROOT_DOMAIN=${config.ROOT_DOMAIN} 不符，拒絕啟動`,

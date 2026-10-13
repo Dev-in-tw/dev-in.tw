@@ -90,6 +90,8 @@ const Env = z
     REPORT_IP_SALT: z.string().min(8),
 
     TRUSTED_PROXY_HOPS: int(1, 0, 10),
+    /** 關掉限流（只給本機與 e2e 用；production 拒絕啟動） */
+    RATE_LIMIT_ENABLED: bool(true),
     WORKER_ENABLED: bool(true),
     RECONCILE_INTERVAL_SECONDS: int(600, 0),
     RECONCILE_MAX_ORPHAN_DELETES: int(10),
@@ -111,6 +113,9 @@ const Env = z
     const issue = (path: string, message: string) =>
       ctx.addIssue({ code: "custom", path: [path], message });
 
+    if (prod && !env.RATE_LIMIT_ENABLED) {
+      issue("RATE_LIMIT_ENABLED", "NODE_ENV=production 時不可關閉限流");
+    }
     if (prod && env.AUTH_DEV_LOGIN) {
       issue("AUTH_DEV_LOGIN", "NODE_ENV=production 時不可開啟 dev 登入");
     }

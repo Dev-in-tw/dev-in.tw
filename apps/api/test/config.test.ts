@@ -34,6 +34,11 @@ describe("config", () => {
     expect(() => loadConfig(prod({ AUTH_DEV_LOGIN: "true" }))).toThrow(/AUTH_DEV_LOGIN/);
   });
 
+  it("refuses to disable rate limiting in production but allows it for local e2e", () => {
+    expect(() => loadConfig(prod({ RATE_LIMIT_ENABLED: "false" }))).toThrow(/RATE_LIMIT_ENABLED/);
+    expect(loadConfig(base({ RATE_LIMIT_ENABLED: "false" })).RATE_LIMIT_ENABLED).toBe(false);
+  });
+
   it("refuses cloudflare together with dev login", () => {
     expect(() =>
       loadConfig(

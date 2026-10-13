@@ -6,7 +6,7 @@
   "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {
-    "dev": "node --watch src/main.ts",
+    "dev": "node --env-file-if-exists=.env --watch src/main.ts",
     "build": "tsdown",
     "start": "node --enable-source-maps dist/server.mjs",
     "typecheck": "tsc --noEmit",

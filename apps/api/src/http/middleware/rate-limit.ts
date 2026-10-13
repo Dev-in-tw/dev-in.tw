@@ -49,14 +49,17 @@ interface Bucket {
 export class RateLimiter {
   readonly #buckets = new Map<string, Bucket>();
   readonly #now: () => number;
+  readonly #enabled: boolean;
   #lastSweep = 0;
 
-  constructor(now: () => number = Date.now) {
+  constructor(now: () => number = Date.now, opts: { enabled?: boolean } = {}) {
     this.#now = now;
+    this.#enabled = opts.enabled ?? true;
   }
 
   /** 扣一個 token；不夠時回傳需要等待的秒數 */
   take(rule: RateRule, key: string): { ok: true } | { ok: false; retryAfter: number } {
+    if (!this.#enabled) return { ok: true };
     const now = this.#now();
     this.#sweep(now);
     const id = `${rule.scope}|${key}`;

@@ -91,6 +91,8 @@ describe("lib", () => {
     expect(limiter.take(RULES.report, "ip").ok).toBe(true);
     now += 2 * 86_400_000;
     expect(limiter.take(RULES.report, "other").ok).toBe(true);
+    const off = new RateLimiter(() => 0, { enabled: false });
+    for (let i = 0; i < 50; i++) expect(off.take(RULES.report, "ip").ok).toBe(true);
   });
 });
 

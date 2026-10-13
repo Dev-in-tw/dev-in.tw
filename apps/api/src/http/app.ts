@@ -51,7 +51,8 @@ export function createApp(deps: Deps, options: AppOptions = {}) {
   const app = new Hono<AppEnv>().basePath("/api");
   const reg: Registry = {
     app,
-    limiter: options.limiter ?? new RateLimiter(),
+    limiter:
+      options.limiter ?? new RateLimiter(Date.now, { enabled: deps.config.RATE_LIMIT_ENABLED }),
     validateResponses: options.validateResponses ?? deps.config.NODE_ENV !== "production",
     registered: new Set(),
   };

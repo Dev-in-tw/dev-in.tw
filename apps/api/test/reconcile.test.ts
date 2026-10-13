@@ -4,6 +4,7 @@ import { createDeps, prepare, StartupError } from "../src/bootstrap.ts";
 import { loadConfig } from "../src/config.ts";
 import { silentLogger } from "../src/lib/logger.ts";
 import { getSetting } from "../src/modules/settings.ts";
+import { ProviderError } from "../src/sync/errors.ts";
 import { importZoneNames, reconcile } from "../src/sync/reconciler.ts";
 import { claim, login, request, setupTestApp, type TestContext, testEnv } from "./helpers/app.ts";
 import { createTestDatabase, pgAvailable } from "./helpers/db.ts";
@@ -214,6 +215,23 @@ describe.skipIf(!pgAvailable)("startup safety valves", () => {
       });
       await expect(prepare(deps)).rejects.toBeInstanceOf(StartupError);
       await expect(prepare(deps)).rejects.toThrow(/ROOT_DOMAIN=dev-in.tw/);
+    } finally {
+      await database.drop();
+    }
+  });
+
+  it("retries transient zone errors at startup and refuses auth errors", async () => {
+    const database = await createTestDatabase();
+    try {
+      const config = loadConfig(testEnv(database.url));
+      const flaky = new MemoryDnsProvider({ zoneName: "dev-in.tw" });
+      flaky.failNext("zone", new ProviderError("transient", "http:503", "x"));
+      await prepare(createDeps(config, database, silentLogger, { provider: flaky }));
+      const denied = new MemoryDnsProvider({ zoneName: "dev-in.tw" });
+      denied.failNext("zone", new ProviderError("auth", "http:401", "x"));
+      await expect(
+        prepare(createDeps(config, database, silentLogger, { provider: denied })),
+      ).rejects.toThrow(/http:401/);
     } finally {
       await database.drop();
     }
