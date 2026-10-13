@@ -1,0 +1,523 @@
+/* biome-ignore-all lint/complexity/noImportantStyles: reduced-motion 的雙重保險必須蓋過元件自己的動畫 */
+@import "tailwindcss";
+
+/*
+ * Dev-in.tw 設計系統：「Zone file × 台灣藍鵲」（docs/PLAN.md §4.2）
+ * 淺色是印在紙上的 RFC，深色是夜裡的終端機。所有 token 都定義在 :root 與 .dark，
+ * 對比由 test/contrast.test.ts 在 CI 檢查（文字 ≥ 4.5:1、UI 元件 ≥ 3:1）。
+ */
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light;
+
+  /* 紙 */
+  --bg: oklch(0.985 0.006 95);
+  --surface: oklch(0.965 0.008 95);
+  --surface-2: oklch(0.935 0.01 95);
+  --ink: oklch(0.24 0.02 262);
+  --ink-muted: oklch(0.47 0.02 262);
+  --rule: oklch(0.88 0.01 262);
+  --field: oklch(0.58 0.02 262);
+
+  /* 台灣藍鵲：鵲藍（身體）、鵲喙紅（喙與腳）、墨黑（頭）、尾白 */
+  --magpie: oklch(0.424 0.181 265.6); /* #1E40AF，品牌主色 */
+  --magpie-strong: oklch(0.36 0.16 266);
+  --magpie-soft: oklch(0.935 0.035 262);
+  --beak: oklch(0.55 0.2 33);
+  --beak-soft: oklch(0.94 0.035 33);
+
+  /* 語意色 */
+  --signal: oklch(0.5 0.14 150);
+  --signal-soft: oklch(0.94 0.05 150);
+  --amber: oklch(0.52 0.12 70);
+  --amber-soft: oklch(0.95 0.05 85);
+  --danger: oklch(0.53 0.2 25);
+  --danger-soft: oklch(0.95 0.03 25);
+
+  --primary: var(--magpie);
+  --primary-fg: oklch(0.985 0.006 95);
+  --focus: var(--magpie);
+  --shadow: var(--rule);
+
+  /* 形狀 */
+  --radius: 6px;
+  --radius-dialog: 10px;
+
+  /* 流體字級（1.25 倍率） */
+  --step--1: clamp(0.833rem, 0.81rem + 0.12vw, 0.9rem);
+  --step-0: clamp(1rem, 0.96rem + 0.2vw, 1.125rem);
+  --step-1: clamp(1.25rem, 1.18rem + 0.35vw, 1.4rem);
+  --step-2: clamp(1.56rem, 1.43rem + 0.6vw, 1.76rem);
+  --step-3: clamp(1.95rem, 1.72rem + 1.1vw, 2.4rem);
+  --step-4: clamp(2.44rem, 2.02rem + 2vw, 3.3rem);
+  --step-5: clamp(3.05rem, 2.3rem + 3.4vw, 4.6rem);
+  --step-6: clamp(3rem, 1.5rem + 7vw, 8rem);
+
+  /* 動態（§4.4） */
+  --dur-1: 120ms;
+  --dur-2: 200ms;
+  --dur-3: 360ms;
+  --dur-4: 700ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+.dark {
+  color-scheme: dark;
+
+  /* 夜 */
+  --bg: oklch(0.165 0.015 262);
+  --surface: oklch(0.205 0.018 262);
+  --surface-2: oklch(0.245 0.02 262);
+  --ink: oklch(0.94 0.012 95);
+  --ink-muted: oklch(0.72 0.015 262);
+  --rule: oklch(0.32 0.02 262);
+  --field: oklch(0.52 0.02 262);
+
+  --magpie: oklch(0.72 0.15 262);
+  --magpie-strong: oklch(0.8 0.11 262);
+  --magpie-soft: oklch(0.27 0.06 264);
+  --beak: oklch(0.7 0.18 33);
+  --beak-soft: oklch(0.28 0.06 33);
+
+  --signal: oklch(0.78 0.17 150);
+  --signal-soft: oklch(0.27 0.05 150);
+  --amber: oklch(0.82 0.15 80);
+  --amber-soft: oklch(0.29 0.05 80);
+  --danger: oklch(0.7 0.19 25);
+  --danger-soft: oklch(0.28 0.06 25);
+
+  --primary: oklch(0.72 0.15 262);
+  --primary-fg: oklch(0.165 0.015 262);
+  --shadow: oklch(0.08 0.01 262);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-rule: var(--rule);
+  --color-field: var(--field);
+  --color-magpie: var(--magpie);
+  --color-magpie-strong: var(--magpie-strong);
+  --color-magpie-soft: var(--magpie-soft);
+  --color-beak: var(--beak);
+  --color-beak-soft: var(--beak-soft);
+  --color-signal: var(--signal);
+  --color-signal-soft: var(--signal-soft);
+  --color-amber: var(--amber);
+  --color-amber-soft: var(--amber-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-primary: var(--primary);
+  --color-primary-fg: var(--primary-fg);
+
+  --font-sans:
+    var(--font-geist), "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", "Heiti TC", system-ui,
+    sans-serif;
+  --font-mono:
+    var(--font-geist-mono), ui-monospace, "SFMono-Regular", "PingFang TC", "Noto Sans TC",
+    "Microsoft JhengHei", monospace;
+  --font-hero: var(--font-huninn), var(--font-geist), "PingFang TC", sans-serif;
+
+  --radius-sm: 4px;
+  --radius-md: var(--radius);
+  --radius-lg: var(--radius-dialog);
+
+  --text-step--1: var(--step--1);
+  --text-step-0: var(--step-0);
+  --text-step-1: var(--step-1);
+  --text-step-2: var(--step-2);
+  --text-step-3: var(--step-3);
+  --text-step-4: var(--step-4);
+  --text-step-5: var(--step-5);
+  --text-step-6: var(--step-6);
+
+  --ease-out: var(--ease-out);
+  --ease-in-out: var(--ease-in-out);
+  --shadow-print: 4px 4px 0 var(--shadow);
+  --shadow-print-sm: 2px 2px 0 var(--shadow);
+}
+
+/* ---------- base ---------- */
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    scroll-padding-top: 5rem;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: var(--step-0);
+    line-height: 1.65;
+    font-feature-settings: "ss01";
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background: color-mix(in oklch, var(--beak) 28%, transparent);
+    color: var(--ink);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  a {
+    color: inherit;
+    text-underline-offset: 0.2em;
+  }
+
+  code,
+  kbd,
+  samp,
+  pre {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--ink-muted);
+    opacity: 1;
+  }
+
+  hr {
+    border-color: var(--rule);
+  }
+}
+
+/* ---------- utilities ---------- */
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 16px 點陣格背景，用 mask 淡出 */
+@utility bg-dots {
+  background-image: radial-gradient(
+    color-mix(in oklch, var(--ink) 16%, transparent) 1px,
+    transparent 1.2px
+  );
+  background-size: 16px 16px;
+  mask-image: radial-gradient(ellipse at 50% 30%, #000 30%, transparent 75%);
+}
+
+@utility print-shadow {
+  box-shadow: 4px 4px 0 var(--shadow);
+}
+
+@utility link {
+  color: var(--magpie);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in oklch, var(--magpie) 40%, transparent);
+  transition: text-decoration-color var(--dur-2) var(--ease-out);
+  &:hover {
+    text-decoration-color: var(--beak);
+  }
+}
+
+/* zone file 欄位：子網域名稱、DNS 值、指令一律等寬 */
+@utility zone {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* ---------- 游標光暈（§4.4 #13）：只在精確指標裝置啟用 ---------- */
+@media (hover: hover) and (pointer: fine) {
+  [data-glow] {
+    background-image: radial-gradient(
+      240px circle at var(--x, -999px) var(--y, -999px),
+      color-mix(in oklch, var(--magpie) 10%, transparent),
+      transparent
+    );
+  }
+}
+
+/* ---------- 同步狀態動畫（§4.4 #6） ---------- */
+.sync-scan {
+  position: relative;
+}
+.sync-scan::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 -2px 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, var(--amber) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: scan 1.2s linear infinite;
+}
+@keyframes scan {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+.sync-flash {
+  animation: flash 600ms var(--ease-out);
+}
+@keyframes flash {
+  from {
+    background-color: color-mix(in oklch, var(--signal) 14%, transparent);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+.sync-shake {
+  animation: shake 160ms var(--ease-in-out) 2;
+}
+@keyframes shake {
+  25% {
+    translate: -2px 0;
+  }
+  75% {
+    translate: 2px 0;
+  }
+}
+.draw-check path {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  animation: draw 240ms var(--ease-out) forwards;
+}
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* 終端機游標 */
+.caret {
+  animation: blink 1.06s steps(1) infinite;
+}
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* 跑馬燈 */
+.animate-marquee {
+  animation: marquee var(--marquee-duration, 40s) linear infinite;
+}
+.marquee:hover .animate-marquee,
+.marquee:focus-within .animate-marquee {
+  animation-play-state: paused;
+}
+@keyframes marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* 暫停所有循環動畫（WCAG 2.2.2；由使用者的暫停控制或 data-paused 觸發） */
+:root[data-motion="paused"] .sync-scan::after,
+:root[data-motion="paused"] .animate-marquee {
+  animation-play-state: paused;
+}
+
+/* ---------- Odometer（§4.4 #10）：純 CSS 計數 ---------- */
+@property --n {
+  syntax: "<integer>";
+  inherits: false;
+  initial-value: 0;
+}
+.odometer {
+  --n: 0;
+  counter-reset: n var(--n);
+  transition: --n 800ms var(--ease-out);
+  font-variant-numeric: tabular-nums;
+}
+.odometer::after {
+  content: counter(n);
+}
+.odometer[data-on="true"] {
+  --n: var(--target);
+}
+
+/* ---------- 捲動驅動的「運作方式」（§4.4 #3） ---------- */
+@supports (animation-timeline: view()) {
+  .scroll-reveal {
+    animation: reveal linear both;
+    animation-timeline: view();
+    animation-range: entry 10% cover 40%;
+  }
+  .scroll-draw {
+    animation: draw-line linear both;
+    animation-timeline: view();
+    animation-range: entry 0% cover 50%;
+  }
+}
+@keyframes reveal {
+  from {
+    clip-path: inset(0 100% 0 0);
+    opacity: 0.2;
+  }
+  to {
+    clip-path: inset(0);
+    opacity: 1;
+  }
+}
+@keyframes draw-line {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ---------- Popover 與 Dialog 進場（§4.4 #12） ---------- */
+.enter-pop {
+  transition:
+    opacity var(--dur-2) var(--ease-out),
+    scale var(--dur-2) var(--ease-out),
+    display var(--dur-2) allow-discrete,
+    overlay var(--dur-2) allow-discrete;
+  opacity: 1;
+  scale: 1;
+  @starting-style {
+    opacity: 0;
+    scale: 0.98;
+  }
+}
+.enter-fade {
+  transition: opacity var(--dur-2) var(--ease-out);
+  opacity: 1;
+  @starting-style {
+    opacity: 0;
+  }
+}
+
+/* 展開錯誤說明（interpolate-size） */
+:root {
+  interpolate-size: allow-keywords;
+}
+.expand {
+  height: 0;
+  overflow: clip;
+  transition: height var(--dur-3) var(--ease-out);
+}
+.expand[data-open="true"] {
+  height: auto;
+}
+
+/* ---------- 票券翻面（§4.4 #4） ---------- */
+.ticket-stage {
+  perspective: 1200px;
+}
+.ticket-card {
+  transform-style: preserve-3d;
+  transition: transform var(--dur-4) var(--ease-out);
+}
+.ticket-card[data-flipped="true"] {
+  transform: rotateY(180deg);
+}
+.ticket-face {
+  backface-visibility: hidden;
+}
+.ticket-back {
+  transform: rotateY(180deg);
+}
+
+/* ---------- View Transitions（§4.4 #5、#11） ---------- */
+::view-transition-group(*) {
+  animation-duration: var(--dur-3);
+  animation-timing-function: var(--ease-out);
+}
+::view-transition-old(.slide-out) {
+  animation: var(--dur-2) var(--ease-out) both vt-slide-out;
+}
+::view-transition-new(.slide-in) {
+  animation: var(--dur-3) var(--ease-out) both vt-slide-in;
+}
+@keyframes vt-slide-out {
+  to {
+    opacity: 0;
+    translate: -12px 0;
+  }
+}
+@keyframes vt-slide-in {
+  from {
+    opacity: 0;
+    translate: 12px 0;
+  }
+}
+::view-transition-group(.morph) {
+  animation-duration: 400ms;
+}
+::view-transition-image-pair(.morph) {
+  animation-name: vt-blur;
+}
+@keyframes vt-blur {
+  30% {
+    filter: blur(2px);
+  }
+}
+
+/* 主題切換：從按鈕位置以圓形擴散 */
+html[data-theme-switching] {
+  view-transition-name: theme;
+}
+::view-transition-old(theme),
+::view-transition-new(theme) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-new(theme) {
+  animation: theme-reveal 520ms var(--ease-in-out) both;
+}
+@keyframes theme-reveal {
+  from {
+    clip-path: circle(0 at var(--vt-x, 50%) var(--vt-y, 0%));
+  }
+  to {
+    clip-path: circle(150% at var(--vt-x, 50%) var(--vt-y, 0%));
+  }
+}
+
+/* ---------- reduced motion：雙重保險（Motion 另外設 reducedMotion="user"） ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+  .sync-scan::after,
+  .caret,
+  .animate-marquee {
+    animation: none !important;
+  }
+  .scroll-reveal,
+  .scroll-draw {
+    animation: none !important;
+    clip-path: none !important;
+    opacity: 1 !important;
+  }
+  .ticket-card {
+    transition: none !important;
+  }
+}
