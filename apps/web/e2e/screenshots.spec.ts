@@ -36,6 +36,15 @@ for (const scheme of ["light", "dark"] as const) {
         if (p.as === "new") await loginAs(page, "new-dev");
         await page.goto(p.path);
         if (p.type) await page.getByLabel("想要的子網域名稱").fill(p.type);
+        // 捲到底再回來，讓捲動觸發的 odometer 與 scroll-driven 動畫先跑完
+        await page.evaluate(async () => {
+          for (let y = 0; y < document.body.scrollHeight; y += 400) {
+            window.scrollTo(0, y);
+            await new Promise((r) => setTimeout(r, 60));
+          }
+          await new Promise((r) => setTimeout(r, 900));
+          window.scrollTo(0, 0);
+        });
         await page.waitForTimeout(1800);
         await page.screenshot({ path: `test/screenshots/${scheme}/${p.name}.png`, fullPage: true });
         // 404 頁本身的文件狀態碼會被瀏覽器記成 console error，這是預期的

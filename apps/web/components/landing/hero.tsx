@@ -19,7 +19,7 @@ export function Hero() {
             <span className="text-beak">;</span> $ORIGIN dev-in.tw.
           </p>
           <h1 className="mt-4">
-            <span className="zone block text-step-6 leading-[0.9] font-bold tracking-[-0.04em]">
+            <span className="zone block text-[clamp(2.6rem,1rem+7vw,6.5rem)] leading-[0.9] font-bold tracking-[-0.04em] whitespace-nowrap">
               DEV-IN<span className="text-beak">.</span>TW
             </span>
             <span className="mt-4 block font-[family-name:var(--font-hero)] text-step-3 text-magpie">

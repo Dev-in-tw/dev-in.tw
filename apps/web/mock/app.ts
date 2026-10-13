@@ -100,6 +100,8 @@ function problemResponse(c: Context, p: Problem): Response {
 }
 
 function originOf(c: Context): string {
+  // dev:mock 時 RSC 直接打 :3001，產生的頭像網址要指回瀏覽器看到的 origin（:3000）
+  if (process.env.MOCK_PUBLIC_ORIGIN) return process.env.MOCK_PUBLIC_ORIGIN;
   const proto = c.req.header("x-forwarded-proto") ?? "http";
   const host = c.req.header("x-forwarded-host") ?? c.req.header("host") ?? "localhost";
   return `${proto}://${host}`;

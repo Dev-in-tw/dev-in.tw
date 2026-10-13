@@ -122,9 +122,14 @@ export function ClaimFlow({ name, me }: { name: string; me: Me | null }) {
           </h2>
           <Step no={1} title="名稱確認">
             <p className="zone text-step-1">
-              <ViewTransition name={`sub-${name}`} share="morph" default="none">
+              {/* 翻面後票券接手 sub-<name> 這個 view-transition-name，避免同名重複 */}
+              {created ? (
                 <span className="font-semibold">{name}</span>
-              </ViewTransition>
+              ) : (
+                <ViewTransition name={`sub-${name}`} share="morph" default="none">
+                  <span className="font-semibold">{name}</span>
+                </ViewTransition>
+              )}
               <span className="text-ink-muted">.dev-in.tw</span>
             </p>
             {result.status === "review" ? (

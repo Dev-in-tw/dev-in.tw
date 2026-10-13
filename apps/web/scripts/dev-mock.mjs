@@ -4,7 +4,7 @@ import { spawn } from "node:child_process";
 const children = [
   spawn(process.execPath, ["mock/server.ts"], {
     stdio: "inherit",
-    env: { ...process.env, PORT: "3001" },
+    env: { ...process.env, PORT: "3001", MOCK_PUBLIC_ORIGIN: "http://localhost:3000" },
   }),
   spawn("pnpm", ["exec", "next", "dev"], {
     stdio: "inherit",

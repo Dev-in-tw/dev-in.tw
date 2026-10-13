@@ -84,5 +84,15 @@ test.describe("reduced motion", () => {
         .map((a) => (a as CSSAnimation).animationName ?? "anonymous"),
     );
     expect(running).toEqual([]);
+
+    // 開通票券不翻面，直接顯示；進度環改成文字百分比
+    await loginAs(page, "calm-dev");
+    await page.goto("/claim/calm-name");
+    await page.getByLabel(/我已閱讀並同意/).check();
+    await page.getByLabel(/我是人類/).check();
+    await page.getByRole("button", { name: "開通" }).click();
+    await expect(page.getByRole("region", { name: /開通成功/ })).toBeVisible();
+    await expect(page.locator(".ticket-card")).toHaveCount(0);
+    await expect(page.getByTestId("propagation")).toContainText("%");
   });
 });

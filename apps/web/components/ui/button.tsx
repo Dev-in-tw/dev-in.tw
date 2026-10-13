@@ -1,5 +1,4 @@
 import { cva, type VariantProps } from "class-variance-authority";
-import { Slot } from "radix-ui";
 import type { ComponentProps } from "react";
 import { cn } from "@/lib/cn.ts";
 
@@ -33,16 +32,9 @@ export const buttonVariants = cva(
   },
 );
 
-export type ButtonProps = ComponentProps<"button"> &
-  VariantProps<typeof buttonVariants> & { asChild?: boolean };
+export type ButtonProps = ComponentProps<"button"> & VariantProps<typeof buttonVariants>;
 
-export function Button({ className, variant, size, asChild, type, ...props }: ButtonProps) {
-  const Comp = asChild ? Slot.Root : "button";
-  return (
-    <Comp
-      className={cn(buttonVariants({ variant, size }), className)}
-      {...(asChild ? {} : { type: type ?? "button" })}
-      {...props}
-    />
-  );
+/** 連結請直接用 <Link className={buttonVariants()}>，不需要 asChild（也就不必把 Radix Slot 打包進首頁） */
+export function Button({ className, variant, size, type, ...props }: ButtonProps) {
+  return <button className={cn(buttonVariants({ variant, size }), className)} type={type ?? "button"} {...props} />;
 }
