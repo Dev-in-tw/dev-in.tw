@@ -1,0 +1,4 @@
+# Playwright screenshots for review only; never committed
+test/screenshots/
+# Playwright output
+e2e/.auth/
