@@ -215,38 +215,7 @@ export function PresetPanel({
               exit={{ opacity: 0 }}
               className="mt-6 space-y-4"
             >
-              <section
-                className="zone overflow-x-auto rounded-md border border-rule bg-surface p-4 text-sm"
-                aria-label="變更預覽"
-              >
-                {plan.deletes.map((r, i) => (
-                  <p
-                    key={r.id}
-                    className="diff-line flex gap-3 whitespace-nowrap text-danger"
-                    style={{ animationDelay: `${i * 30}ms` }}
-                  >
-                    <span aria-hidden>-</span>
-                    <span className="sr-only">刪除</span>
-                    <span>{r.name}</span>
-                    <span className="font-semibold">{r.type}</span>
-                    <span>{recordValue(r)}</span>
-                  </p>
-                ))}
-                {plan.creates.map((r, i) => (
-                  <motion.p
-                    key={lineKey(r)}
-                    layoutId={`rec-${lineKey(r)}`}
-                    className="diff-line flex gap-3 whitespace-nowrap text-signal"
-                    style={{ animationDelay: `${(plan.deletes.length + i) * 30}ms` }}
-                  >
-                    <span aria-hidden>+</span>
-                    <span className="sr-only">新增</span>
-                    <span>{r.name}</span>
-                    <span className="font-semibold">{r.type}</span>
-                    <span>{recordValue(r)}</span>
-                  </motion.p>
-                ))}
-              </section>
+              <PresetDiff plan={plan} />
               {plan.warnings.map((w) => (
                 <p key={w} className="flex gap-2 text-sm text-amber">
                   <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
@@ -295,6 +264,46 @@ export function PresetPanel({
         </ul>
       </section>
     </LayoutGroup>
+  );
+}
+
+/** git diff 風格的變更預覽：- 刪除（紅）、+ 新增（綠），逐行 stagger；+ 行帶 layoutId 給 FLIP 用 */
+export function PresetDiff({ plan }: { plan: PresetPlan }) {
+  return (
+    <section
+      className="zone overflow-x-auto rounded-md border border-rule bg-surface p-4 text-sm"
+      aria-label="變更預覽"
+    >
+      {plan.deletes.map((r, i) => (
+        <p
+          key={r.id}
+          data-diff="delete"
+          className="diff-line flex gap-3 whitespace-nowrap text-danger"
+          style={{ animationDelay: `${i * 30}ms` }}
+        >
+          <span aria-hidden>-</span>
+          <span className="sr-only">刪除</span>
+          <span>{r.name}</span>
+          <span className="font-semibold">{r.type}</span>
+          <span>{recordValue(r)}</span>
+        </p>
+      ))}
+      {plan.creates.map((r, i) => (
+        <motion.p
+          key={lineKey(r)}
+          layoutId={`rec-${lineKey(r)}`}
+          data-diff="create"
+          className="diff-line flex gap-3 whitespace-nowrap text-signal"
+          style={{ animationDelay: `${(plan.deletes.length + i) * 30}ms` }}
+        >
+          <span aria-hidden>+</span>
+          <span className="sr-only">新增</span>
+          <span>{r.name}</span>
+          <span className="font-semibold">{r.type}</span>
+          <span>{recordValue(r)}</span>
+        </motion.p>
+      ))}
+    </section>
   );
 }
 
