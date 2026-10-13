@@ -28,7 +28,7 @@ function loadScript(): Promise<void> {
 }
 
 /**
- * Cloudflare Turnstile。site key 由 GET /meta 下發（前端不使用 NEXT_PUBLIC_*）。
+ * Cloudflare Turnstile。site key 由 GET /meta 在執行期下發（前端不使用任何建置期的公開環境變數）。
  * mock server 會給 `mock-` 開頭的 key：這時顯示本機用的假驗證框，e2e 不必連外網。
  * Token 只是證明人機驗證通過，真正的驗證永遠在後端（siteverify）。
  */
