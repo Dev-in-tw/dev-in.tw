@@ -4,7 +4,8 @@ import type { ReservedCategory } from "@dit/contract";
  * 保留字種子清單（PLAN.md 附錄 A）。
  *
  * - system 與 brand 同時出現的名稱（gitlab, github）只列在 brand，因為 brand 另外會觸發近似比對。
- * - offensive 清單只放在 private seed 檔，不進公開 repo。TODO(WP-A)：決定 private seed 的載入方式。
+ * - offensive 清單不進公開 repo：由 API 在啟動時從選用的 private seed 檔匯入（類別 offensive），
+ *   這個套件只提供公開的 system 與 brand 種子。
  * - premium（1–2 字元）由名稱規則處理；zone 類別在啟動時從 DNS provider 匯入。
  */
 const SYSTEM = [
@@ -247,3 +248,8 @@ export const RESERVED_SEED: readonly ReservedSeed[] = [
   ...BRAND_INTERNATIONAL.map((name) => ({ name, category: "brand" as const })),
   ...BRAND_TAIWAN.map((name) => ({ name, category: "brand" as const, note: "台灣品牌" })),
 ];
+
+/** brand 類別的名稱（給 confusableWith 用） */
+export const BRAND_NAMES: readonly string[] = RESERVED_SEED.filter(
+  (r) => r.category === "brand",
+).map((r) => r.name);
