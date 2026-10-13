@@ -164,7 +164,7 @@ export const endpoints = {
     }),
     status: 204,
     response: null,
-    errors: ["NOT_FOUND"],
+    errors: ["NOT_FOUND", "ACCOUNT_SUSPENDED"],
   },
   logout: {
     method: "POST",
@@ -302,7 +302,7 @@ export const endpoints = {
     body: ReleaseSubdomainBody,
     status: 202,
     response: Subdomain,
-    errors: [...WRITE_ERRORS, "CONFIRMATION_MISMATCH"],
+    errors: [...WRITE_ERRORS, "CONFIRMATION_MISMATCH", "SUBDOMAIN_NOT_ACTIVE"],
   },
   listSubdomainActivity: {
     method: "GET",
@@ -385,7 +385,7 @@ export const endpoints = {
     headers: ["If-Match"],
     status: 202,
     response: DnsRecord,
-    errors: [...WRITE_ERRORS, "VERSION_CONFLICT"],
+    errors: [...WRITE_ERRORS, "VERSION_CONFLICT", "SUBDOMAIN_NOT_ACTIVE"],
   },
   retryRecordSync: {
     method: "POST",
@@ -394,7 +394,7 @@ export const endpoints = {
     params: RecordParams,
     status: 202,
     response: DnsRecord,
-    errors: WRITE_ERRORS,
+    errors: [...WRITE_ERRORS, "SUBDOMAIN_NOT_ACTIVE"],
   },
 
   // Presets
@@ -537,7 +537,7 @@ export const endpoints = {
     body: AdminReasonBody,
     status: 200,
     response: AdminSubdomain,
-    errors: WRITE_ERRORS,
+    errors: [...WRITE_ERRORS, "SUBDOMAIN_NOT_ACTIVE"],
   },
   adminSuspendSubdomain: {
     method: "POST",
@@ -547,7 +547,7 @@ export const endpoints = {
     body: AdminReasonBody,
     status: 200,
     response: AdminSubdomain,
-    errors: WRITE_ERRORS,
+    errors: [...WRITE_ERRORS, "SUBDOMAIN_NOT_ACTIVE"],
   },
   adminUnsuspendSubdomain: {
     method: "POST",
@@ -557,7 +557,7 @@ export const endpoints = {
     body: AdminDecisionBody,
     status: 200,
     response: AdminSubdomain,
-    errors: WRITE_ERRORS,
+    errors: [...WRITE_ERRORS, "SUBDOMAIN_NOT_ACTIVE"],
   },
   adminListReports: {
     method: "GET",
