@@ -8,7 +8,13 @@ import { ManualClock } from "../src/lib/clock.ts";
 import { safeEqual, signPayload, verifyPayload } from "../src/lib/crypto.ts";
 import { isUuid, uuidv7 } from "../src/lib/ids.ts";
 import { silentLogger } from "../src/lib/logger.ts";
-import { approximateIp, hashIp, normalizeIp, resolveClientIp } from "../src/lib/net.ts";
+import {
+  approximateIp,
+  hashIp,
+  normalizeIp,
+  resolveClientIp,
+  resolveViaCloudflare,
+} from "../src/lib/net.ts";
 import { TtlCache } from "../src/lib/ttl-cache.ts";
 import { ProviderError } from "../src/sync/errors.ts";
 import {
@@ -53,6 +59,16 @@ describe("lib", () => {
     expect(resolveClientIp(undefined, "10.0.0.1", 1)).toBe("10.0.0.1");
     expect(resolveClientIp("garbage", "10.0.0.1", 1)).toBe("10.0.0.1");
     expect(resolveClientIp("[2001:db8::1]", null, 1)).toBe("2001:db8::1");
+  });
+
+  it("uses CF-Connecting-IP only when the proxied source is Cloudflare", () => {
+    expect(resolveViaCloudflare("172.70.1.2", "203.0.113.9")).toBe("203.0.113.9");
+    expect(resolveViaCloudflare("2a06:98c0::1", "2001:db8::9")).toBe("2001:db8::9");
+    // 繞過 Cloudflare 直接連主機時，偽造的 header 不生效
+    expect(resolveViaCloudflare("198.51.100.7", "203.0.113.9")).toBe("198.51.100.7");
+    expect(resolveViaCloudflare("172.70.1.2", "not-an-ip")).toBe("172.70.1.2");
+    expect(resolveViaCloudflare("172.70.1.2", undefined)).toBe("172.70.1.2");
+    expect(resolveViaCloudflare(null, "203.0.113.9")).toBe(null);
     expect(normalizeIp("")).toBeNull();
     expect(approximateIp("203.0.113.9")).toBe("203.0.113.x");
     expect(approximateIp("2001:db8:1234:5678::1")).toBe("2001:db8:1234::/48");

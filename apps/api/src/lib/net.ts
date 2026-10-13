@@ -1,4 +1,5 @@
 import { isIP } from "node:net";
+import { isCloudflareIp } from "./cloudflare.ts";
 import { sha256Hex } from "./crypto.ts";
 
 /** 去掉 IPv4-mapped IPv6 的前綴（::ffff:1.2.3.4 → 1.2.3.4），不合法時回 null */
@@ -28,6 +29,19 @@ export function resolveClientIp(
   if (chain.length === 0) return socket;
   const candidate = chain[Math.max(0, chain.length - hops)];
   return normalizeIp(candidate) ?? socket;
+}
+
+/**
+ * 前面有 Cloudflare 代理時，受信任 proxy 看到的來源是 Cloudflare 機房；這時改用 Cloudflare 附上的
+ * CF-Connecting-IP。只有在依 hops 解析出的來源確實屬於 Cloudflare 時才採信，繞過 Cloudflare
+ * 直接連到主機的請求即使偽造這個 header 也不會生效。
+ */
+export function resolveViaCloudflare(
+  proxied: string | null,
+  cfConnectingIp: string | undefined | null,
+): string | null {
+  if (!isCloudflareIp(proxied)) return proxied;
+  return normalizeIp(cfConnectingIp) ?? proxied;
 }
 
 /** 給使用者看的大略位置："203.0.113.x"、"2001:db8:1234::/48" */

@@ -1,6 +1,6 @@
 import type { MiddlewareHandler } from "hono";
 import { randomToken } from "../../lib/crypto.ts";
-import { hashIp, resolveClientIp } from "../../lib/net.ts";
+import { hashIp, resolveClientIp, resolveViaCloudflare } from "../../lib/net.ts";
 import { AppError } from "../../lib/problem.ts";
 import { resolveSession, SESSION_COOKIE } from "../../modules/identity/sessions.ts";
 import type { AppEnv } from "../env.ts";
@@ -23,12 +23,17 @@ interface NodeBindings {
 }
 
 export const clientIp =
-  (hops: number): MiddlewareHandler<AppEnv> =>
+  (hops: number, trustCloudflare = false): MiddlewareHandler<AppEnv> =>
   async (c, next) => {
     const env = c.env as NodeBindings | undefined;
+    const proxied = resolveClientIp(
+      c.req.header("x-forwarded-for"),
+      env?.incoming?.socket?.remoteAddress,
+      hops,
+    );
     c.set(
       "clientIp",
-      resolveClientIp(c.req.header("x-forwarded-for"), env?.incoming?.socket?.remoteAddress, hops),
+      trustCloudflare ? resolveViaCloudflare(proxied, c.req.header("cf-connecting-ip")) : proxied,
     );
     await next();
   };

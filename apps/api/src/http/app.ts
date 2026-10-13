@@ -62,7 +62,7 @@ export function createApp(deps: Deps, options: AppOptions = {}) {
     await next();
   });
   app.use("*", requestId());
-  app.use("*", clientIp(deps.config.TRUSTED_PROXY_HOPS));
+  app.use("*", clientIp(deps.config.TRUSTED_PROXY_HOPS, deps.config.TRUST_CLOUDFLARE));
   app.use("*", wideLog());
   app.use("*", securityHeaders());
 

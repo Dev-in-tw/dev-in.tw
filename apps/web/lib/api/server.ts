@@ -22,9 +22,15 @@ export const getServerApi = cache((): Client => {
         .map((c) => `${c.name}=${c.value}`)
         .join("; ");
       if (cookie) out.cookie = cookie;
-      // 原樣轉發 X-Forwarded-For：API 以 TRUSTED_PROXY_HOPS 從右數取 client IP 做限流，
+      // 原樣轉發 X-Forwarded-For 與 CF-Connecting-IP：API 依此取得 client IP 做限流，
       // 少了它所有訪客會共用 web 容器的 IP 額度
-      for (const name of ["x-forwarded-for", "x-request-id", "user-agent", "accept-language"]) {
+      for (const name of [
+        "x-forwarded-for",
+        "cf-connecting-ip",
+        "x-request-id",
+        "user-agent",
+        "accept-language",
+      ]) {
         const value = incoming.get(name);
         if (value) out[name] = value;
       }

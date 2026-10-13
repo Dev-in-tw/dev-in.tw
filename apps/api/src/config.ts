@@ -90,6 +90,8 @@ const Env = z
     REPORT_IP_SALT: z.string().min(8),
 
     TRUSTED_PROXY_HOPS: int(1, 0, 10),
+    /** 前面有 Cloudflare 代理時開啟：來源是 Cloudflare 機房才改用 CF-Connecting-IP */
+    TRUST_CLOUDFLARE: bool(false),
     /** 關掉限流（只給本機與 e2e 用；production 拒絕啟動） */
     RATE_LIMIT_ENABLED: bool(true),
     WORKER_ENABLED: bool(true),
