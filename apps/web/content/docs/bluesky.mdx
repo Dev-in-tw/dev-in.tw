@@ -1,0 +1,13 @@
+# Bluesky handle
+
+把 `@你.dev-in.tw` 當作你的 Bluesky 帳號名稱。
+
+1. 在 Bluesky 打開 **Settings → Account → Handle → I have my own domain**
+2. 輸入 `你.dev-in.tw`，選 **DNS Panel**，複製畫面上的 `did:plc:…`
+3. 在 Dev-in.tw 子網域「總覽」選 **Bluesky handle**，貼上 DID，會產生：
+
+```
+_atproto  1  IN  TXT  "did=did:plc:…"
+```
+
+4. 回到 Bluesky 按 **Verify DNS Record**

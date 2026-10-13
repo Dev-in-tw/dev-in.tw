@@ -1,0 +1,13 @@
+# Cloudflare Pages
+
+1. 在 Cloudflare 的 **Workers & Pages** 打開專案，到 **Custom domains → Set up a custom domain**
+2. 輸入 `你.dev-in.tw`。因為這個網域不在你的 Cloudflare 帳號裡，它會要求你自己加 CNAME
+3. 在 Dev-in.tw 子網域「總覽」選 **Cloudflare Pages**，填專案名稱（`my-project.pages.dev` 的 `my-project`）
+
+```
+@  1  IN  CNAME  my-project.pages.dev.
+```
+
+4. 回到 Cloudflare 等狀態變成 **Active**
+
+> Dev-in.tw 不開放「橘雲」代理（proxied），紀錄一律是 DNS only。Pages 本身就有 CDN，不影響使用。

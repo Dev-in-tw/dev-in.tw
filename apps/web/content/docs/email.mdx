@@ -1,0 +1,19 @@
+# Email 轉寄
+
+想讓 `hi@你.dev-in.tw` 收得到信？最簡單的是用免費的 [ImprovMX](https://improvmx.com) 轉寄到你的 Gmail。
+
+1. 在 ImprovMX 註冊並加入網域 `你.dev-in.tw`，設定要轉寄到哪個信箱
+2. 在 Dev-in.tw 子網域「總覽」選 **ImprovMX**，會產生：
+
+```
+@  1  IN  MX   10 mx1.improvmx.com.
+@  1  IN  MX   20 mx2.improvmx.com.
+@  1  IN  TXT  "v=spf1 include:spf.improvmx.com ~all"
+```
+
+3. 回到 ImprovMX 按 **Check again**，看到綠色勾勾就完成了
+
+## 注意
+
+- MX 和 CNAME 不能同名。如果 `@` 已經 CNAME 到 GitHub Pages，就沒辦法同時在 `@` 收信，可以改用 `mail.你.dev-in.tw` 這類子名稱。
+- 平台站台的信箱（abuse@、security@、hello@dev-in.tw）由 Lazco 維運，和你的子網域無關。

@@ -1,0 +1,11 @@
+# Netlify
+
+1. 在 Netlify 打開網站的 **Domain management → Add a domain**，輸入 `你.dev-in.tw`
+2. Netlify 會問你是否擁有這個網域，選 **Add domain**（不要選用 Netlify DNS，我們不開放 NS 委派）
+3. 回到 Dev-in.tw，在子網域「總覽」選 **Netlify**，填入網站名稱（`my-site.netlify.app` 的 `my-site`）
+
+```
+@  1  IN  CNAME  my-site.netlify.app.
+```
+
+4. 回到 Netlify 按 **Verify DNS configuration**，接著 **Provision certificate** 申請 HTTPS 憑證

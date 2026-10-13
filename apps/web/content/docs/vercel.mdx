@@ -1,0 +1,21 @@
+# Vercel
+
+## 在 Vercel 加入網域
+
+1. 打開專案的 **Settings → Domains**
+2. 輸入 `你.dev-in.tw` 按 **Add**
+3. Vercel 會給你一個 CNAME 目標，通常是 `cname.vercel-dns.com`，有時是專屬的 `xxxx.vercel-dns-017.com`
+
+## 在 Dev-in.tw 設定
+
+在子網域「總覽」選 **Vercel**：
+
+- **CNAME 目標**：留空就用 `cname.vercel-dns.com`；Vercel 給了專屬值就貼上
+- **驗證 TXT**：如果 Vercel 要求驗證，把 `vc-domain-verify=…` 貼上，會多產生一筆 `_vercel` TXT
+
+```
+@        1  IN  CNAME  cname.vercel-dns.com.
+_vercel  1  IN  TXT    "vc-domain-verify=…"
+```
+
+回到 Vercel 等它顯示 **Valid Configuration**，憑證會自動簽發。
