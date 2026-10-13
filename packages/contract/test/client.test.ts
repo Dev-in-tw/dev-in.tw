@@ -6,7 +6,7 @@ type Call = { url: string; init: RequestInit };
 
 function fakeFetch(respond: (call: Call) => Response) {
   const calls: Call[] = [];
-  const fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+  const fetch = (async (input: Parameters<typeof globalThis.fetch>[0], init?: RequestInit) => {
     const call = { url: String(input), init: init ?? {} };
     calls.push(call);
     return respond(call);

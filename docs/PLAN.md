@@ -2236,7 +2236,7 @@ export function toZoneLine(r: DnsRecord): string;    // "www  300  IN  CNAME  al
 
 | 日期 | 版本 | 變更 | 原因 | 提出者 |
 |---|---|---|---|---|
-| 2026-10-14 | contract-v1 | 依 §5.3 建立初版合約並凍結。相對於 §5.3 的新增：每個 schema 都匯出同名的 `z.infer` 型別；`errors.ts` 新增 `ERROR_STATUS`（錯誤碼對應的 HTTP 狀態）與 `problemType()`；`client.ts` 完成 `createClient` 實作，並新增 `Client` 型別、`resolvePath()`、`serializeQuery()`、`ApiError.status`；`events.ts` 新增 `ServerEventType`；`client.ts` 的 `Out<T>` 對無 body 的端點改為 `undefined`（原為 `void`，Biome `noConfusingVoidType`）；fixtures 以 `@dit/contract/fixtures` 子路徑匯出（`responses`、`requests`、`availability`、`subdomains`、`records`、`events`、`problems`、`presets`、`users`、`ids`） | 讓前後端對狀態碼與 problem `type` 有單一來源；fixtures 不進正式 bundle | WP0 |
+| 2026-10-14 | contract-v1 | 依 §5.3 建立初版合約並凍結。相對於 §5.3 的新增：每個 schema 都匯出同名的 `z.infer` 型別；`errors.ts` 新增 `ERROR_STATUS`（錯誤碼對應的 HTTP 狀態）與 `problemType()`；`client.ts` 完成 `createClient` 實作，並新增 `Client` 型別、`resolvePath()`、`serializeQuery()`、`ApiError.status`；`events.ts` 新增 `ServerEventType`；`ClientOptions.headers` 的型別由 DOM 的 `HeadersInit` 改為等價的 `HeadersInput`（`ConstructorParameters<typeof Headers>[0]`），讓合約不依賴 DOM lib、在 Node（`@types/node`）與瀏覽器都能型別檢查；`client.ts` 的 `Out<T>` 對無 body 的端點改為 `undefined`（原為 `void`，Biome `noConfusingVoidType`）；fixtures 以 `@dit/contract/fixtures` 子路徑匯出（`responses`、`requests`、`availability`、`subdomains`、`records`、`events`、`problems`、`presets`、`users`、`ids`） | 讓前後端對狀態碼與 problem `type` 有單一來源；fixtures 不進正式 bundle | WP0 |
 
 ---
 

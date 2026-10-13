@@ -44,6 +44,7 @@ export const ids = {
   recordMX: "0199e2a2-1000-7000-8000-000000000005",
   recordSRV: "0199e2a2-1000-7000-8000-000000000006",
   recordCAA: "0199e2a2-1000-7000-8000-000000000007",
+  recordApexCNAME: "0199e2a2-1000-7000-8000-000000000008",
   transfer: "0199e2a3-2000-7000-9000-000000000001",
   report: "0199e2a4-3000-7000-a000-000000000001",
   audit1: "0199e2a5-4000-7000-b000-000000000001",
@@ -247,7 +248,7 @@ const me = {
   role: "user",
   status: "active",
   quota: { subdomains: { used: 1, limit: 2 }, recordsPerSubdomain: 10 },
-  incomingTransfers: 1,
+  incomingTransfers: 0,
   createdAt: T0,
 } as const satisfies Me;
 
@@ -461,7 +462,7 @@ export const responses = {
   listMyActivity: { items: auditEvents, nextCursor: "eyJpZCI6IjAxOTkifQ" },
   listSubdomains: { items: [subdomains.active, subdomains.pending_review] },
   createSubdomain: subdomains.active,
-  getSubdomain: subdomains.active,
+  getSubdomain: { ...subdomains.active, pendingTransferId: ids.transfer },
   updateSubdomain: { ...subdomains.active, description: "新的描述" },
   releaseSubdomain: subdomains.releasing,
   listSubdomainActivity: { items: auditEvents, nextCursor: null },
@@ -512,8 +513,10 @@ export const responses = {
   retryRecordSync: { ...records.MX, syncStatus: "pending", syncError: null, version: 1 },
   planPreset: {
     creates: [{ type: "CNAME", name: "@", ttl: 1, target: "alice.github.io" }],
-    deletes: [records.A, records.AAAA],
-    warnings: ["現有的 @ A 與 @ AAAA 會和 CNAME 衝突，套用時一併刪除"],
+    deletes: [records.A, records.AAAA, records.MX, records.CAA],
+    warnings: [
+      "現有的 @ A、@ AAAA、@ MX、@ CAA 會和 CNAME 衝突（CNAME 不能與其他紀錄同名），套用時一併刪除",
+    ],
   },
   applyPreset: {
     created: [
@@ -522,10 +525,10 @@ export const responses = {
         name: "@",
         ttl: 1,
         target: "alice.github.io",
-        ...recordMeta(ids.recordCNAME, "@", "pending"),
+        ...recordMeta(ids.recordApexCNAME, "@", "pending"),
       },
     ],
-    deletedIds: [ids.recordA, ids.recordAAAA],
+    deletedIds: [ids.recordA, ids.recordAAAA, ids.recordMX, ids.recordCAA],
   },
   createTransfer: transfer,
   listTransfers: { incoming: [], outgoing: [transfer] },

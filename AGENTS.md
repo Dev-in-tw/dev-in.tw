@@ -74,6 +74,8 @@ Dockerfile 的 `docker build`（不 push）。送 PR 前請在本機跑過前四
   可以直接執行。不要用 enum、namespace、parameter property（`erasableSyntaxOnly`）。
 - 內部套件（`@dit/contract`、`@dit/dns`）直接匯出 TypeScript 原始碼，沒有自己的 build；
   由 tsdown（api）與 Next 的 `transpilePackages`（web）編譯。
+  這兩個套件只用 `@types/node` 提供的全域型別（`fetch`、`Headers`、`Response`），**不加 DOM lib**，
+  避免 `window`、`document` 等型別外溢到 api。
 - Biome：lineWidth 100、雙引號、分號、`trailingCommas: all`；2.5 以 `linter.rules.preset: "recommended"`
   啟用建議規則。`apps/web/next-env.d.ts` 由 Next 產生，已 gitignore。
 - 對外 JSON 欄位一律 camelCase；時間用 ISO 8601（含時區）；ID 用 UUIDv7。

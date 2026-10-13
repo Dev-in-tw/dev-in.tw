@@ -1,4 +1,9 @@
 {
   "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // fetch、Headers、Response 等全域型別取自 @types/node（Node 24 與瀏覽器都有這些 API）。
+    // 刻意不加 DOM lib，避免 window、document 之類的型別外溢到 api 與 dns。
+    "types": ["node"]
+  },
   "include": ["src", "test"]
 }

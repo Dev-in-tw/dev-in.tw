@@ -1,6 +1,3 @@
-// fetch、Headers、Response 在瀏覽器與 Node 24 都有；型別取自 DOM lib，並隨這個檔案帶給所有使用端
-/// <reference lib="dom" />
-/// <reference lib="dom.iterable" />
 import type { z } from "zod";
 import type { Endpoint, EndpointName, Endpoints } from "./endpoints.ts";
 import { endpoints } from "./endpoints.ts";
@@ -38,10 +35,13 @@ export class ApiError extends Error {
   }
 }
 
+/** 等同 DOM 的 HeadersInit（不依賴 DOM lib，Node 與瀏覽器皆可用） */
+export type HeadersInput = ConstructorParameters<typeof Headers>[0];
+
 export interface ClientOptions {
   baseUrl: string; // 瀏覽器端用 "/api/v1"；RSC 用 `${API_INTERNAL_URL}/api/v1`
   fetch?: typeof fetch;
-  headers?: () => HeadersInit | Promise<HeadersInit>; // RSC 用來轉發 cookie
+  headers?: () => HeadersInput | Promise<HeadersInput>; // RSC 用來轉發 cookie
   validateResponses?: boolean; // dev 與測試時為 true
 }
 
