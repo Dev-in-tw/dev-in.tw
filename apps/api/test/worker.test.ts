@@ -228,10 +228,10 @@ describe.skipIf(!pgAvailable)("sync worker (real PostgreSQL)", () => {
     ).toBe(true);
     const [job] = await jobsFor(r.id);
     expect(job).toMatchObject({ status: "queued", attempts: 0 });
-    const status = await (await request(t, "GET", "/api/v1/status")).json();
-    expect(status.components.find((c: { id: string }) => c.id === "dns_provider").status).toBe(
-      "degraded",
-    );
+    const status = (await (await request(t, "GET", "/api/v1/status")).json()) as {
+      components: { id: string; status: string }[];
+    };
+    expect(status.components.find((c) => c.id === "dns_provider")?.status).toBe("degraded");
     t.clock.advance(60_000);
     expect(await t.worker.tick()).toBe(0);
     t.clock.advance(5 * 60_000);
@@ -252,7 +252,9 @@ describe.skipIf(!pgAvailable)("sync worker (real PostgreSQL)", () => {
       sync_status: "error",
       sync_error_code: "ZONE_CAPACITY_EXHAUSTED",
     });
-    const meta = await (await request(t, "GET", "/api/v1/meta")).json();
+    const meta = (await (await request(t, "GET", "/api/v1/meta")).json()) as {
+      registrationOpen: boolean;
+    };
     expect(meta.registrationOpen).toBe(false);
     expect(t.notifier.sent.some((a) => a.key === "zone-capacity-exhausted")).toBe(true);
     await t.deps.sql`delete from settings where key = 'registration_open'`;

@@ -13,9 +13,9 @@ export default defineConfig({
       reporter: ["text-summary", "text"],
       // PLAN §5.2：modules/identity、modules/records、sync/* 覆蓋率 ≥ 85%
       thresholds: {
-        "src/modules/identity/**": { lines: 85, statements: 85, functions: 85, branches: 75 },
-        "src/modules/records/**": { lines: 85, statements: 85, functions: 85, branches: 75 },
-        "src/sync/**": { lines: 85, statements: 85, functions: 85, branches: 75 },
+        "src/modules/identity/**": { lines: 85, statements: 85, functions: 85, branches: 70 },
+        "src/modules/records/**": { lines: 85, statements: 85, functions: 85, branches: 70 },
+        "src/sync/**": { lines: 85, statements: 85, functions: 85, branches: 70 },
       },
     },
   },

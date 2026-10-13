@@ -113,10 +113,10 @@ describe.skipIf(!pgAvailable)("reconciler", () => {
         empty.notifier.sent.some((a) => a.key === "reconcile-blocked" && a.severity === "critical"),
       ).toBe(true);
       const admin = await login(empty, "rc-admin", { role: "admin" });
-      const zone = await (
+      const zone = (await (
         await request(empty, "GET", "/api/v1/admin/zone", { cookie: admin })
-      ).json();
-      expect(zone.drift[0].detail).toMatch(/^待確認/);
+      ).json()) as { drift: { detail: string }[] };
+      expect(zone.drift[0]?.detail).toMatch(/^待確認/);
 
       const forced = await request(empty, "POST", "/api/v1/admin/zone/reconcile?force=true", {
         cookie: admin,
