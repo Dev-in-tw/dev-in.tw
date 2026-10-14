@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { RecordType } from "./dns.ts";
+import { RecordType, SyncBatching } from "./dns.ts";
 import { IsoDateTime, PublicUser, SubdomainName, Uuid } from "./primitives.ts";
 
 export const Meta = z.object({
@@ -47,6 +47,8 @@ export const ServiceStatus = z.object({
     pending: z.int(),
     failed: z.int(),
     oldestPendingSeconds: z.int().nullable(),
+    /** 批次寫入模式（Lazco DNS）時才有；即時同步時是 null 或省略（contract-v1.3） */
+    batching: SyncBatching.nullable().optional(),
   }),
   lastReconcileAt: IsoDateTime.nullable(),
   checkedAt: IsoDateTime,

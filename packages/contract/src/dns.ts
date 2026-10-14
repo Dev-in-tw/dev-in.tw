@@ -49,12 +49,33 @@ export type RecordInput = z.infer<typeof RecordInput>;
 
 export const SyncStatus = z.enum(["pending", "synced", "error", "deleting"]);
 export type SyncStatus = z.infer<typeof SyncStatus>;
+/**
+ * pending／deleting 時預計寫入 DNS 的時間（contract-v1.3）。只有 DNS provider 以批次寫入時
+ * （Lazco DNS，約每 16–18 分鐘一批）才有值；即時同步、已同步或時間未知時是 null 或省略。
+ */
+export const SyncEta = IsoDateTime.nullable();
+export type SyncEta = z.infer<typeof SyncEta>;
+/**
+ * 批次寫入的狀態（contract-v1.3）：DNS provider 有每日批次上限時，worker 把多筆變更聚合成一批送出。
+ * intervalSeconds 是目前兩批之間的最短間隔（今天剩下的時間 ÷ 剩下的批次額度）；pausedUntil 是額度
+ * 用完時暫停到的時間（下一個 UTC 日）。
+ */
+export const SyncBatching = z.object({
+  intervalSeconds: z.int().nonnegative(),
+  nextBatchAt: IsoDateTime.nullable(),
+  lastBatchAt: IsoDateTime.nullable(),
+  pausedUntil: IsoDateTime.nullable(),
+  batchesToday: z.int().nonnegative(),
+  dailyBudget: z.int().nonnegative(),
+});
+export type SyncBatching = z.infer<typeof SyncBatching>;
 export const RecordMeta = z.object({
   id: Uuid,
   fqdn: z.string(),
   version: z.int().positive(),
   syncStatus: SyncStatus,
   syncError: z.object({ code: z.string(), message: z.string() }).nullable(),
+  syncEta: SyncEta.optional(),
   createdAt: IsoDateTime,
   updatedAt: IsoDateTime,
 });

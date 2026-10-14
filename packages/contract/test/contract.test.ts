@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { z } from "zod";
 import {
   availability,
+  batching,
   events,
   presets,
   problems,
@@ -143,6 +144,18 @@ describe("variant fixtures cover every state", () => {
     for (const [type, value] of Object.entries(events)) {
       expect(ServerEvent.parse(value).type).toBe(type);
     }
+  });
+
+  it("batching: the contract-v1.3 fields parse", () => {
+    expect(DnsRecord.parse(batching.record).syncEta).toBe(batching.record.syncEta);
+    expect(ServerEvent.parse(batching.event)).toMatchObject({ syncEta: batching.event.syncEta });
+    expect(endpoints.getStatus.response.parse(batching.getStatus).syncQueue.batching).toEqual(
+      batching.getStatus.syncQueue.batching,
+    );
+    expect(endpoints.adminZone.response.parse(batching.adminZone)).toMatchObject({
+      provider: "lazco",
+      usageUnit: "rrset",
+    });
   });
 
   it("presets: ids are unique", () => {

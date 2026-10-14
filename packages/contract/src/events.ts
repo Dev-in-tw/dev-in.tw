@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { SyncStatus } from "./dns.ts";
+import { SyncEta, SyncStatus } from "./dns.ts";
 import { IsoDateTime, SubdomainName, Uuid } from "./primitives.ts";
 import { SubdomainStatus } from "./subdomain.ts";
 import { TransferStatus } from "./transfer.ts";
@@ -13,6 +13,7 @@ export const ServerEvent = z.discriminatedUnion("type", [
     version: z.int(),
     syncStatus: SyncStatus,
     syncError: z.object({ code: z.string(), message: z.string() }).nullable(),
+    syncEta: SyncEta.optional(),
   }),
   z.object({ type: z.literal("record.deleted"), subdomain: SubdomainName, recordId: Uuid }),
   z.object({

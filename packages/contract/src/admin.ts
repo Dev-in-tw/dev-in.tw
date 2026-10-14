@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SyncBatching } from "./dns.ts";
 import { IsoDateTime, PageQuery, PublicUser, Usage, Uuid } from "./primitives.ts";
 import { ReportCategory, ReportStatus } from "./report.ts";
 import { Subdomain } from "./subdomain.ts";
@@ -110,6 +111,12 @@ export const ZoneReport = z.object({
     }),
   ),
   lastReconcileAt: IsoDateTime.nullable(),
+  /** 目前連到的 DNS provider（contract-v1.3） */
+  provider: z.enum(["cloudflare", "memory", "lazco"]).optional(),
+  /** usage 的單位：record（Cloudflare）或 rrset（Lazco DNS，同名同類型算一個）（contract-v1.3） */
+  usageUnit: z.enum(["record", "rrset"]).optional(),
+  /** 批次寫入模式時的額度與排程（contract-v1.3） */
+  batching: SyncBatching.nullable().optional(),
 });
 export type ZoneReport = z.infer<typeof ZoneReport>;
 export const AdminSettings = z.object({
