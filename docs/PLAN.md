@@ -2266,3 +2266,10 @@ export function toZoneLine(r: DnsRecord): string;    // "www  300  IN  CNAME  al
   - 其他收件人一律丟棄（catch-all drop）；`_dmarc` 為 `p=reject; sp=none`（主網域不寄信，子網域屬於使用者）。
 - **DNS 代管**：dev-in.tw **暫時留在 Cloudflare**（Free，上限 1,000 筆）。原本計畫搬到 Lazco DNS，但目前卡在：Lazco Cloud 的 `/v1/dns/*` 只接受 session、不接受 API token（403 `SESSION_REQUIRED`）；dns-api 只開放 k8s 叢集內部；每個 zone 每天 90 批變更（Dev-in 需聚合批次，延遲約 16 分鐘）；不支援 ALIAS；Cloudflare Email Routing 必須留在 Cloudflare。搬遷列為後續專案，前提是 cloud-backend 支援有 zone 範圍的 API token，且信箱改用 Google Workspace 別名網域。安全設計仍不可綁定 Cloudflare。
 - 法務文件（條款、隱私權政策、使用規範）定稿，營運主體 Lazco Labs（拉資科科技有限公司，Lazco Corporation）。
+
+### 7.2 Lazco DNS zone（2026-10-14 建立）
+
+- zone id `01a139ad-a5ee-7000-972c-e6f2a568279d`，client `cloud-backend-prod`、owner Lazco Corporation（`f7c2658a-3b49-45fd-97f6-0a515223ddc4`），nameserver `ns1.lazco.tw`、`ns2.lazco.tw`。
+- 以 break-glass operator 建立後移轉（歷史紀錄的 actor 為 `haco (via Claude Code, Dev-in.tw migration)`），初次匯入 10 個 RRset：apex／www／api 的 A 與 AAAA 直接指向 Dokploy 主機（`160.30.99.158`、`2a0f:85c1:390:aa26::2`），以及 Google Workspace 的 MX、SPF、site verification、DKIM 與 DMARC，已逐筆與 Cloudflare 比對。
+- 尚未委派：`.tw` 仍指向 Cloudflare。未委派的 zone 約在 2026-11-11 後會被 28 天清除刪除，必須在那之前切換 NS。
+- 切換 NS 的前提：Dev-in 的 Lazco DNS adapter 與 www／api 轉址已部署。切換生效後再以 operator 開啟 DNSSEC，並把 DS 交給註冊商。
