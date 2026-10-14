@@ -1,6 +1,5 @@
-import { RecordType } from "@dit/contract";
-import { validateRecord } from "@dit/dns";
-import { and, eq, inArray, ne, sql } from "drizzle-orm";
+import { providerViolations } from "@dit/dns";
+import { and, eq, ne, sql } from "drizzle-orm";
 import { systemFqdns } from "../config.ts";
 import { type Deps, SYSTEM_ACTOR } from "../context.ts";
 import { ts } from "../db/client.ts";
@@ -14,7 +13,7 @@ import {
 } from "../db/schema.ts";
 import { addMs, DAY, MINUTE } from "../lib/clock.ts";
 import { writeAudit } from "../modules/audit/service.ts";
-import { recordDto, recordInputOf } from "../modules/dto.ts";
+import { recordInputOf } from "../modules/dto.ts";
 import { setSetting } from "../modules/settings.ts";
 import { type BatchPlan, type PlannedUpsert, planBatch } from "./batch.ts";
 import { BATCH_MAX_WAIT_MS, BATCH_QUIET_MS, currentSchedule, etaFrom } from "./batching.ts";
@@ -310,43 +309,15 @@ export class SyncWorker {
       } else ready.push(u);
     }
 
-    // 送出前用 packages/dns 的規則（含 provider 的限制）再驗一次：一筆壞資料不能讓整批失敗
+    // 送出前只檢查「provider 會拒絕」的部分（packages/dns 的 providerViolations）：一筆它存不了的紀錄
+    // 不能讓整批失敗而浪費額度。刻意不重跑完整的 validateRecord：Dev-in 自己的規則已經在 API 寫入時
+    // 執行過，規則日後變嚴（或 MX 指向後來才建立的 CNAME 這類寫入時不會回頭檢查的組合）時，重跑會把
+    // 在 provider 上正常運作的紀錄擋掉，切換 provider 時整批重新寫入就會讓它們從 DNS 上消失。
+    // CNAME 排他與重複由 planner 處理，其他沒預料到的拒絕由 422 的 issues 對回個別紀錄。
     const rejected = new Map<string, { code: string; message: string }>();
-    const subIds = [...new Set(ready.map((u) => u.sub.id))];
-    const siblings = subIds.length
-      ? await db.select().from(dnsRecords).where(inArray(dnsRecords.subdomainId, subIds))
-      : [];
-    const ownerIds = [...new Set(ready.map((u) => u.sub.ownerId))];
-    const owned = ownerIds.length
-      ? await db
-          .select({ ownerId: subdomains.ownerId, name: subdomains.name })
-          .from(subdomains)
-          .where(inArray(subdomains.ownerId, ownerIds))
-      : [];
     for (const u of ready) {
-      const verdict = validateRecord(recordInputOf(u.record), {
-        sub: u.sub.name,
-        root,
-        existing: siblings
-          .filter(
-            (r) =>
-              r.subdomainId === u.sub.id && r.id !== u.record.id && r.syncStatus !== "deleting",
-          )
-          .map((r) => recordDto(r, u.sub.name, root)),
-        ownedSubdomains: owned.filter((o) => o.ownerId === u.sub.ownerId).map((o) => o.name),
-        allowedTypes: RecordType.options,
-        provider: config.DNS_PROVIDER,
-      });
-      if (!verdict.ok) {
-        const first = verdict.violations[0];
-        rejected.set(u.record.id, {
-          code:
-            first?.code === "RECORD_CONFLICT" || first?.code === "RECORD_DUPLICATE"
-              ? "RECORD_CONFLICT"
-              : "VALIDATION_FAILED",
-          message: first?.message ?? "紀錄內容不符合目前 DNS 服務的規則",
-        });
-      }
+      const [first] = providerViolations(recordInputOf(u.record), config.DNS_PROVIDER);
+      if (first) rejected.set(u.record.id, { code: "VALIDATION_FAILED", message: first.message });
     }
 
     // 規劃需要的索引：誰擁有哪個值、沒有在批次內的紀錄的 TTL

@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { MINUTE, SECOND } from "../src/lib/clock.ts";
 import { loadOwnership } from "../src/sync/ownership.ts";
+import { reconcile } from "../src/sync/reconciler.ts";
 import { claim, request } from "./helpers/app.ts";
 import { pgAvailable } from "./helpers/db.ts";
 import { type Lazco, setupLazco, ZONE } from "./helpers/lazco.ts";
@@ -174,6 +175,30 @@ describe.skipIf(!pgAvailable)("lazco dns: batched sync", () => {
     });
     expect(z.fake.get(`${sub}.dev-in.tw`, "A")?.values).toEqual(["203.0.114.7"]);
     z.fake.rejectValues.clear();
+  });
+
+  it("keeps writing records that only today's Dev-in rules would refuse (switch-over resync)", async () => {
+    const sub = await fresh();
+    // MX 先建、之後才把它指向的名稱建成 CNAME：寫入時合法，但完整的 validateRecord 現在會擋 MX
+    const mx = await add(sub, {
+      type: "MX",
+      name: "@",
+      ttl: 1,
+      priority: 10,
+      exchange: `mail.${sub}.dev-in.tw`,
+    });
+    await add(sub, { type: "CNAME", name: "mail", ttl: 1, target: "mx.example.net" });
+    await flush();
+    expect((await records(sub)).every((r) => r.syncStatus === "synced")).toBe(true);
+    // 切換 provider 後的第一次對帳：provider 上找不到 → 重新排入 → 一樣要寫回去
+    z.fake.rrsets.delete(`${sub}.dev-in.tw.|MX`);
+    const report = await reconcile(z.t.deps);
+    expect(report?.drift).toEqual(
+      expect.arrayContaining([expect.objectContaining({ kind: "missing", type: "MX" })]),
+    );
+    await flush();
+    expect(z.fake.get(`${sub}.dev-in.tw`, "MX")?.values).toEqual([`10 mail.${sub}.dev-in.tw.`]);
+    expect((await records(sub)).find((r) => r.id === mx.id)?.syncStatus).toBe("synced");
   });
 
   it("refuses values Lazco cannot store at write time", async () => {
