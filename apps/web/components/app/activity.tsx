@@ -19,6 +19,7 @@ const ACTIONS: Record<string, string> = {
   "record.delete": "刪除紀錄",
   "record.sync_failed": "紀錄同步失敗",
   "record.drift_corrected": "修正了漂移的紀錄",
+  "record.dangling_suspected": "CNAME 指向的名稱已不存在，可能被他人接管",
   "preset.apply": "套用一鍵設定",
   "transfer.create": "發起轉移",
   "transfer.accept": "接受轉移",
@@ -54,7 +55,9 @@ export function ActivityList({ items, className }: { items: AuditEvent[]; classN
             aria-hidden
             className={cn(
               "absolute top-4 -left-[1.6rem] size-2.5 rounded-full border-2 border-bg",
-              e.action.includes("fail") || e.action.includes("suspend")
+              e.action.includes("fail") ||
+                e.action.includes("suspend") ||
+                e.action.includes("dangling")
                 ? "bg-danger"
                 : e.actorType === "system"
                   ? "bg-field"

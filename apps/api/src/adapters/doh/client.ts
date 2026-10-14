@@ -15,6 +15,8 @@ export interface ResolverResult {
   answers: string[];
   latencyMs: number | null;
   error: string | null;
+  /** resolver 明確回答 NXDOMAIN（名稱不存在）；給 dangling CNAME 偵測用 */
+  nxdomain?: boolean;
 }
 
 export interface DohResolver {
@@ -64,11 +66,15 @@ export function createDohResolver(
         const res = await doFetch(`${resolver.url}?dns=${dns}`, {
           headers: { Accept: "application/dns-message" },
           signal: AbortSignal.timeout(timeoutMs),
+          // 只打固定的四個 resolver；不跟隨轉址，避免被導到其他主機
+          redirect: "error",
         });
         if (!res.ok) return { answers: [], latencyMs: now() - started, error: "查詢失敗" };
         const message = decodeResponse(new Uint8Array(await res.arrayBuffer()));
         const latencyMs = now() - started;
-        if (message.rcode === RCODE.NXDOMAIN) return { answers: [], latencyMs, error: null };
+        if (message.rcode === RCODE.NXDOMAIN) {
+          return { answers: [], latencyMs, error: null, nxdomain: true };
+        }
         if (message.rcode !== RCODE.NOERROR) return { answers: [], latencyMs, error: "查詢失敗" };
         const answers = message.answers
           .filter((a) => a.type === type)

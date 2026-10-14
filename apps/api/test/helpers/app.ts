@@ -55,9 +55,13 @@ export class FakeGithub implements GithubClient {
 
 export class FakeDoh implements DohResolver {
   answers = new Map<string, string[]>();
+  /** "<resolver>|<fqdn>" 或 "*|<fqdn>"：回 NXDOMAIN */
+  nxdomain = new Set<string>();
   calls = 0;
   async query(resolver: string, fqdn: string, type: string) {
     this.calls++;
+    if (this.nxdomain.has(`${resolver}|${fqdn}`) || this.nxdomain.has(`*|${fqdn}`))
+      return { answers: [], latencyMs: 12, error: null, nxdomain: true };
     if (resolver === "quad101" && fqdn.startsWith("slow."))
       return { answers: [], latencyMs: null, error: "逾時" };
     return { answers: this.answers.get(`${fqdn}|${type}`) ?? [], latencyMs: 12, error: null };
