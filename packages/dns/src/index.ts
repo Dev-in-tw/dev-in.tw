@@ -34,9 +34,11 @@ export {
 export { describeRecord, isSameRecord, recordContent, recordDataEquals } from "./record-data.ts";
 export {
   CAA_TAGS,
+  isSpecialUseHostname,
   isValidTtl,
   MAX_FQDN_LENGTH,
   type RecordContext,
+  SPECIAL_USE_SUFFIXES,
   SRV_PROTOCOLS,
   subdomainOf,
   TXT_MAX_LENGTH,
