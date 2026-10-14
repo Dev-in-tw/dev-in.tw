@@ -297,6 +297,7 @@ describe.skipIf(!pgAvailable)("contract consistency", () => {
     await admin("adminAuditLog", { query: { action: "subdomain.create" } });
     await admin("adminZone");
     await admin("adminReconcile", { query: {} });
+    await expectCode(admin("adminRetrySyncJob", { params: { jobId: "999999" } }), "NOT_FOUND");
     await Promise.all([...t.deps.runtime.background]);
     await admin("adminGetSettings");
     await admin("adminUpdateSettings", { body: { reviewMode: "risk" } });

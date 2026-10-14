@@ -14,6 +14,7 @@ import { and, count, desc, eq, gt, ilike, inArray, lt, or, type SQL, sql } from 
 import { type Actor, type Deps, runInBackground } from "../../context.ts";
 import { dnsSyncJobs, reports, reservedNames, subdomains, users } from "../../db/schema.ts";
 import { AppError } from "../../lib/problem.ts";
+import { wakeWorker } from "../../sync/events-bus.ts";
 import { reconcile } from "../../sync/reconciler.ts";
 import { writeAudit } from "../audit/service.ts";
 import { adminSubdomainDto, adminUserDto, decodeCursor, iso, pageOf, publicUser } from "../dto.ts";
@@ -331,6 +332,63 @@ export async function adminZone(deps: Deps): Promise<ZoneReport> {
 /** 202：對帳在背景執行；force=true 才會越過大量刪除煞車 */
 export async function adminReconcile(deps: Deps, force: boolean, actor: Actor): Promise<void> {
   runInBackground(deps, () => reconcile(deps, { force, actor: { ...actor, type: "admin" } }));
+}
+
+/**
+ * 把 dead 的同步工作重新排入（attempts 歸零、立即執行）。同一筆紀錄或同一個子網域的 purge 已經有
+ * queued／running 的工作時，這個 dead 工作直接標成 done（新的工作會處理最新狀態），不重複排入。
+ * 卡在 releasing 的子網域（例如刪除帳號時 Cloudflare 長時間故障）靠它重新清除。
+ */
+export async function adminRetrySyncJob(deps: Deps, jobId: string, actor: Actor): Promise<void> {
+  const id = Number(jobId);
+  await deps.db.transaction(async (tx) => {
+    const [job] = await tx
+      .select()
+      .from(dnsSyncJobs)
+      .where(and(eq(dnsSyncJobs.id, id), eq(dnsSyncJobs.status, "dead")))
+      .for("update")
+      .limit(1);
+    if (!job) throw new AppError("NOT_FOUND", "找不到這個 dead 工作");
+    const [active] = await tx.execute(sql`
+      select 1 from dns_sync_jobs
+       where id <> ${job.id} and status in ('queued', 'running')
+         and ((${job.recordId}::uuid is not null and record_id = ${job.recordId}::uuid)
+           or (${job.recordId}::uuid is null and kind = ${job.kind}
+               and subdomain_id = ${job.subdomainId}::uuid))
+       limit 1`);
+    const superseded = Boolean(active);
+    await tx
+      .update(dnsSyncJobs)
+      .set(
+        superseded
+          ? { status: "done", lastError: "superseded by a newer job", updatedAt: sql`now()` }
+          : {
+              status: "queued",
+              attempts: 0,
+              runAt: deps.clock.now(),
+              lockedUntil: null,
+              updatedAt: sql`now()`,
+            },
+      )
+      .where(eq(dnsSyncJobs.id, job.id));
+    await writeAudit(
+      tx,
+      { ...actor, type: "admin" },
+      {
+        action: "sync_job.retry",
+        targetType: "sync_job",
+        targetId: String(job.id),
+        targetLabel: `${job.kind} #${job.id}`,
+        metadata: {
+          kind: job.kind,
+          recordId: job.recordId,
+          subdomainId: job.subdomainId,
+          superseded,
+        },
+      },
+    );
+    if (!superseded) await wakeWorker(tx);
+  });
 }
 
 export async function adminGetSettings(deps: Deps): Promise<AdminSettings> {

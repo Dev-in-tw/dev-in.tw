@@ -7,6 +7,7 @@ import {
   adminOverview,
   adminReconcile,
   adminRemoveReserved,
+  adminRetrySyncJob,
   adminUpdateSettings,
   adminUpdateUser,
   adminZone,
@@ -68,6 +69,10 @@ export function adminRoutes(reg: Registry): void {
   define(reg, "adminReconcile", async ({ c, query, actor }) => {
     await adminReconcile(c.get("deps"), query.force === "true", actor);
     return new Response(null, { status: 202 });
+  });
+  define(reg, "adminRetrySyncJob", async ({ c, params, actor }) => {
+    await adminRetrySyncJob(c.get("deps"), params.jobId, actor);
+    return new Response(null, { status: 204 });
   });
   define(reg, "adminGetSettings", ({ c }) => adminGetSettings(c.get("deps")));
   define(reg, "adminUpdateSettings", ({ c, body, actor }) =>

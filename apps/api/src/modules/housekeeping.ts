@@ -3,13 +3,14 @@ import type { Deps } from "../context.ts";
 import { ts } from "../db/client.ts";
 import { auditLogs, idempotencyKeys, nameHolds } from "../db/schema.ts";
 import { DAY, HOUR } from "../lib/clock.ts";
+import { requeueStuckReleases } from "./releases/stuck.ts";
 import { expireTransfers } from "./transfers/service.ts";
 
 const LOCK_KEY = "28548153004385636";
 
 /**
- * 定期清理（PLAN §3.5 資料保存）：session 過期 7 天後刪除、idempotency key 24 小時、name hold 到期、
- * audit IP 90 天後清空、audit 保留 1 年、過期的轉移、已申請刪除且子網域都清掉的帳號。
+ * 定期清理（PLAN §3.5 資料保存、隱私權政策第 8 條）：session 過期 7 天後刪除、idempotency key 24 小時、
+ * name hold 到期、audit IP 90 天後清空、audit 保留 1 年、過期的轉移、卡在 releasing 的子網域重新排入清除，最後刪除已申請刪除且子網域都清掉的帳號。
  */
 export async function runHousekeeping(deps: Deps): Promise<Record<string, number>> {
   const reserved = await deps.sql.reserve();
@@ -46,6 +47,7 @@ export async function runHousekeeping(deps: Deps): Promise<Record<string, number
       const jobs = await deps.db.execute(sql`
         delete from dns_sync_jobs where status = 'done' and updated_at < ${ts(ago(7 * DAY))} returning id`);
       const transfers = await expireTransfers(deps);
+      const releasesRequeued = await requeueStuckReleases(deps);
       const deleted = await deps.db.execute(sql`
         delete from users u
          where u.deletion_requested_at is not null
@@ -59,6 +61,7 @@ export async function runHousekeeping(deps: Deps): Promise<Record<string, number
         auditDeleted: old.length,
         jobsDeleted: jobs.length,
         transfersExpired: transfers,
+        releasesRequeued,
         usersDeleted: deleted.length,
       };
       deps.logger.info({ evt: "housekeeping", ...result }, "housekeeping done");
