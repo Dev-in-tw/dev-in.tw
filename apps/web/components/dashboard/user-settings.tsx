@@ -2,7 +2,17 @@
 
 import type { Session } from "@dit/contract";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Keyboard, Laptop, LogOut, Monitor, Smartphone, TriangleAlert, User } from "lucide-react";
+import {
+  Download,
+  Keyboard,
+  Laptop,
+  LogOut,
+  Monitor,
+  Smartphone,
+  TriangleAlert,
+  User,
+} from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type ReactNode, useId, useState } from "react";
 import { toast } from "sonner";
@@ -12,7 +22,7 @@ import { Button } from "@/components/ui/button.tsx";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog.tsx";
 import { FieldError, Input, Label } from "@/components/ui/field.tsx";
 import { Switch } from "@/components/ui/switch.tsx";
-import { api, isNotImplemented } from "@/lib/api/client.ts";
+import { api, isApiError, isNotImplemented } from "@/lib/api/client.ts";
 import { errorMessage } from "@/lib/errors.ts";
 import { useMe } from "@/lib/me.tsx";
 import { usePreferences } from "@/lib/preferences.tsx";
@@ -75,6 +85,7 @@ export function UserSettings() {
         </Card>
         <Preferences />
         <Sessions />
+        <DataExport />
         <DeleteAccount />
       </div>
     </PageBody>
@@ -228,6 +239,60 @@ function Sessions() {
   );
 }
 
+/** 依個資法第 3 條「製給複製本」：把 GET /me/export 的 JSON 存成檔案 */
+export function exportFilename(login: string, at: Date = new Date()): string {
+  return `dev-in-tw-${login.toLowerCase()}-${at.toISOString().slice(0, 10)}.json`;
+}
+
+function DataExport() {
+  const me = useMe();
+  const download = useMutation({
+    mutationFn: () => api("exportMyData"),
+    onSuccess: (data) => {
+      const blob = new Blob([`${JSON.stringify(data, null, 2)}\n`], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = exportFilename(me.githubLogin);
+      document.body.append(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast.success("已下載你的資料");
+    },
+    onError: (e) =>
+      toast.error("下載失敗", {
+        description: isApiError(e, "RATE_LIMITED")
+          ? "每小時最多下載 3 次，請稍後再試。"
+          : errorMessage(e),
+      }),
+  });
+  return (
+    <Card title="下載我的資料" icon={<Download className="size-5 text-magpie" aria-hidden />}>
+      <p className="text-sm">
+        下載一份 JSON 檔，內容是我們保存的你的資料：帳號資料（含 email）、子網域、DNS
+        紀錄、操作紀錄（含你操作時的 IP，90 天後清除）、登入裝置（含 IP 與瀏覽器資訊）、轉移紀錄、
+        你同意的條款版本，以及你登入時送出的檢舉。不含其他使用者的個人資料。
+      </p>
+      <p className="mt-2 text-sm text-ink-muted">
+        檔案含有 IP 等個人資料，請妥善保管。每小時最多下載 3 次。
+      </p>
+      <Button
+        variant="secondary"
+        className="mt-4"
+        onClick={() => download.mutate()}
+        disabled={download.isPending}
+        data-testid="export-data"
+      >
+        <Download aria-hidden />
+        {download.isPending ? "準備中…" : "下載 JSON"}
+      </Button>
+    </Card>
+  );
+}
+
 function DeleteAccount() {
   const me = useMe();
   const router = useRouter();
@@ -242,10 +307,26 @@ function DeleteAccount() {
   });
   return (
     <Card title="刪除帳號" icon={<TriangleAlert className="size-5" aria-hidden />} danger>
-      <p className="text-sm">
-        刪除後，你的所有子網域會被釋出並撤下 DNS 紀錄（名稱進入 30
-        天冷卻期），帳號資料會被刪除，只保留法律要求的稽核紀錄。
-      </p>
+      <div className="space-y-2 text-sm" data-testid="delete-account-notice">
+        <p>
+          <strong>立即：</strong>清除你的 email 與顯示名稱、登出所有裝置；你名下所有子網域開始釋出，
+          DNS 紀錄會被撤下並刪除，名稱進入 30 天冷卻期，<strong>無法復原</strong>。
+        </p>
+        <p>
+          <strong>子網域清除完成後</strong>（通常幾小時內；DNS 服務故障時系統會自動重試）：
+          刪除帳號資料，包括 GitHub 帳號資訊、登入裝置與同意紀錄。完成前用同一個 GitHub
+          帳號登入，會取消刪除，但已釋出的子網域不會恢復。
+        </p>
+        <p>
+          <strong>會保留的資料：</strong>稽核紀錄保存 1 年（其中的 IP 90 天後清除），紀錄中的 GitHub
+          帳號名稱與子網域名稱不再連結到你的帳號；你送出的檢舉在結案 1 年後清除聯絡 email
+          與內容；資料庫備份最長約 14 天後覆寫。詳見
+          <Link href="/privacy" className="link">
+            隱私權政策第 9 條
+          </Link>
+          。需要的話，刪除前可以先下載你的資料。
+        </p>
+      </div>
       <Dialog onOpenChange={() => setConfirm("")}>
         <DialogTrigger asChild>
           <Button variant="danger" className="mt-4">
