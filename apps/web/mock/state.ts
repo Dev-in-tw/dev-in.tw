@@ -23,6 +23,7 @@ import {
   subdomains as subdomainFixtures,
   users as userFixtures,
 } from "@dit/contract/fixtures";
+import { CURRENT_LEGAL_VERSIONS } from "@dit/contract/legal";
 
 export interface MockUser {
   id: string;
@@ -37,6 +38,15 @@ export interface MockUser {
   createdAt: string;
   lastLoginAt: string;
   quotaOverride: { subdomains: number | null; recordsPerSubdomain: number | null } | null;
+  /** 最近一次同意的條款版本（null = 從未同意） */
+  consent: { termsVersion: string; privacyVersion: string; acceptedAt: string } | null;
+}
+
+export interface MockDeadJob {
+  id: number;
+  kind: string;
+  lastError: string | null;
+  updatedAt: string;
 }
 
 export interface MockSession {
@@ -100,6 +110,7 @@ export interface State {
   settings: AdminSettings;
   config: MockConfig;
   idempotency: Map<string, { hash: string; status: number; body: unknown }>;
+  deadJobs: MockDeadJob[];
   seq: number;
 }
 
@@ -122,6 +133,7 @@ function user(
     createdAt: T_OLD,
     lastLoginAt: T_NOW,
     quotaOverride: null,
+    consent: { ...CURRENT_LEGAL_VERSIONS, acceptedAt: T_OLD },
     ...extra,
   };
 }
@@ -218,6 +230,7 @@ function seed(): State {
     settings: { registrationOpen: true, reviewMode: "risk" },
     config: { notImplemented: [], capacityFull: false, syncDelayMs: 1200 },
     idempotency: new Map(),
+    deadJobs: responses.adminZone.deadJobs.map((d) => ({ ...d })),
     seq: 0,
   };
 }

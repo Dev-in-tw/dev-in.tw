@@ -22,6 +22,7 @@ import { isClaimable, toneOf } from "@/lib/availability.ts";
 import { cn } from "@/lib/cn.ts";
 import { errorMessage } from "@/lib/errors.ts";
 import { t } from "@/lib/i18n/zh-Hant.ts";
+import { CURRENT_LEGAL_VERSIONS, LEGAL_DOCS } from "@/lib/legal.ts";
 import { q } from "@/lib/queries.ts";
 import { ClaimTerminal } from "./terminal.tsx";
 import { TicketStage } from "./ticket.tsx";
@@ -64,7 +65,14 @@ export function ClaimFlow({ name, me }: { name: string; me: Me | null }) {
   const create = useMutation({
     mutationFn: () =>
       api("createSubdomain", {
-        body: { name, description, acceptTerms: true, turnstileToken: token ?? "" },
+        body: {
+          name,
+          description,
+          acceptTerms: true,
+          turnstileToken: token ?? "",
+          // 使用者勾選同意的版本：後端核對是目前版本後記錄為同意紀錄
+          ...CURRENT_LEGAL_VERSIONS,
+        },
         idempotencyKey: key,
       }),
     onSuccess: async (sub) => {
@@ -181,14 +189,15 @@ export function ClaimFlow({ name, me }: { name: string; me: Me | null }) {
                 <Link href="/terms" className="link" target="_blank">
                   服務條款
                 </Link>
-                、
+                （v{LEGAL_DOCS.terms.version}）、
                 <Link href="/privacy" className="link" target="_blank">
                   隱私權政策
                 </Link>
-                與
+                （v{LEGAL_DOCS.privacy.version}）與
                 <Link href="/aup" className="link" target="_blank">
                   使用規範
                 </Link>
+                （v{LEGAL_DOCS.aup.version}）
               </label>
             </div>
           </Step>

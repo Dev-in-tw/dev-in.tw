@@ -7,6 +7,7 @@ import { LogoMark } from "@/components/brand/logo.tsx";
 import { buttonVariants } from "@/components/ui/button.tsx";
 import { getMeSafe } from "@/lib/api/server.ts";
 import { cn } from "@/lib/cn.ts";
+import { CURRENT_LEGAL_VERSIONS, LEGAL_DOCS } from "@/lib/legal.ts";
 import { safeRedirect } from "@/lib/redirect.ts";
 
 export const metadata: Metadata = {
@@ -34,7 +35,11 @@ export default async function LoginPage({
 
   const errorKey = typeof params.error === "string" ? params.error : undefined;
   const error = errorKey ? (ERRORS[errorKey] ?? ERRORS.oauth_failed) : undefined;
-  const start = `/api/v1/auth/github/start?redirect=${encodeURIComponent(target)}`;
+  // 帶上登入頁顯示的條款版本：首次登入時，後端把它記錄為同意紀錄
+  const start = `/api/v1/auth/github/start?${new URLSearchParams({
+    redirect: target,
+    ...CURRENT_LEGAL_VERSIONS,
+  })}`;
 
   return (
     <div className="relative px-4 py-16 sm:py-24">
@@ -61,6 +66,21 @@ export default async function LoginPage({
             <GithubMark className="size-5" />
             使用 GitHub 登入
           </a>
+          <p className="mt-3 text-center text-xs text-ink-muted" data-testid="login-consent">
+            按下登入，即表示你已閱讀並同意
+            <a href="/terms" className="link">
+              服務條款
+            </a>
+            （v{LEGAL_DOCS.terms.version}，含
+            <a href="/aup" className="link">
+              使用規範
+            </a>
+            ）與
+            <a href="/privacy" className="link">
+              隱私權政策
+            </a>
+            （v{LEGAL_DOCS.privacy.version}）。
+          </p>
 
           <div className="mt-8 border-t border-rule pt-6">
             <h2 className="zone text-sm font-semibold">
