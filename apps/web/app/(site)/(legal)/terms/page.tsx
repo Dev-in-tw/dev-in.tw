@@ -1,12 +1,21 @@
 import type { Metadata } from "next";
+import { LegalHeader } from "@/components/legal/header.tsx";
 import Content from "@/content/legal/terms.mdx";
+import { LEGAL_DOCS } from "@/lib/legal.ts";
+
+const doc = LEGAL_DOCS.terms;
 
 export const metadata: Metadata = {
-  title: "服務條款",
-  description: "Dev-in.tw 的服務條款：子網域使用權、帳號、停權與免責。",
+  title: doc.title,
+  description: doc.description,
   alternates: { canonical: "/terms" },
 };
 
 export default function Page() {
-  return <Content />;
+  return (
+    <>
+      <LegalHeader doc={doc} />
+      <Content />
+    </>
+  );
 }
