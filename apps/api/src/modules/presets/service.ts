@@ -82,6 +82,7 @@ async function computePlan(
       existing: simulated,
       ownedSubdomains: owned,
       allowedTypes: deps.config.ALLOWED_RECORD_TYPES,
+      provider: deps.config.DNS_PROVIDER,
     });
     const error = verdictError(verdict, "PRESET_PARAMS_INVALID");
     if (error) {

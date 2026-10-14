@@ -40,8 +40,13 @@ export async function cancelQueuedRecordJobs(ex: Executor, recordId: string): Pr
  * 以 SKIP LOCKED 取件，多個 worker 併發也不會拿到同一個工作；
  * 同一筆紀錄已經有 running 的工作時不取，避免同一筆紀錄被併發寫入 provider。
  */
-export async function claimJobs(ex: Executor, now: Date, limit = 10): Promise<JobRow[]> {
-  const lockedUntil = new Date(now.getTime() + LOCK_MS);
+export async function claimJobs(
+  ex: Executor,
+  now: Date,
+  limit = 10,
+  lockMs: number = LOCK_MS,
+): Promise<JobRow[]> {
+  const lockedUntil = new Date(now.getTime() + lockMs);
   const rows = await ex.execute<Record<string, unknown>>(sql`
     update dns_sync_jobs j
        set status = 'running', locked_until = ${ts(lockedUntil)}, attempts = attempts + 1, updated_at = now()
@@ -108,6 +113,25 @@ export async function rescheduleJob(
            attempts = ${countAttempt ? sql`attempts` : sql`greatest(attempts - 1, 0)`},
            updated_at = now()
      where j.id = ${job.id}`);
+}
+
+/** 到期、等待執行的工作：數量、最新與最早的 run_at（批次模式決定何時送出） */
+export async function dueSummary(
+  ex: Executor,
+  now: Date,
+): Promise<{ count: number; newest: Date | null; oldest: Date | null }> {
+  const [row] = await ex.execute<{
+    n: string;
+    newest: Date | string | null;
+    oldest: Date | string | null;
+  }>(sql`
+    select count(*) as n, max(run_at) as newest, min(run_at) as oldest
+      from dns_sync_jobs where status = 'queued' and run_at <= ${ts(now)}`);
+  return {
+    count: Number(row?.n ?? 0),
+    newest: row?.newest ? new Date(row.newest) : null,
+    oldest: row?.oldest ? new Date(row.oldest) : null,
+  };
 }
 
 /** 執行中但鎖已過期（process 當掉）的工作放回佇列 */

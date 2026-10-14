@@ -13,6 +13,7 @@ import {
 } from "../../db/schema.ts";
 import { uuidv7 } from "../../lib/ids.ts";
 import { AppError } from "../../lib/problem.ts";
+import { withSyncEta, withSyncEtas } from "../../sync/batching.ts";
 import { wakeWorker } from "../../sync/events-bus.ts";
 import { fqdnOf } from "../../sync/mapper.ts";
 import { cancelQueuedRecordJobs, enqueue } from "../../sync/queue.ts";
@@ -76,6 +77,7 @@ export async function validateAgainst(
     existing: existing.map((r) => recordDto(r, sub.name, deps.config.ROOT_DOMAIN)),
     ownedSubdomains: await ownedNames(ex, sub.ownerId),
     allowedTypes: deps.config.ALLOWED_RECORD_TYPES,
+    provider: deps.config.DNS_PROVIDER,
   });
   const error = verdictError(verdict);
   if (error) throw error;
@@ -97,7 +99,10 @@ export async function listRecords(deps: Deps, user: UserRow, name: string): Prom
     .where(eq(dnsRecords.subdomainId, sub.id))
     .orderBy(asc(dnsRecords.createdAt), asc(dnsRecords.id));
   return {
-    items: rows.map((r) => recordDto(r, sub.name, deps.config.ROOT_DOMAIN)),
+    items: await withSyncEtas(
+      deps,
+      rows.map((r) => recordDto(r, sub.name, deps.config.ROOT_DOMAIN)),
+    ),
     usage: {
       used: rows.filter((r) => r.syncStatus !== "deleting").length,
       limit: userLimits(user, deps.config).records,
@@ -181,7 +186,7 @@ export async function createRecord(
   actor: Actor,
 ): Promise<DnsRecord> {
   const input = normalizeRecordInput(raw);
-  return deps.db.transaction(async (tx) => {
+  const dto = await deps.db.transaction(async (tx) => {
     // FOR UPDATE：同一個子網域的寫入序列化（配額與 CNAME 排他才不會被併發繞過）
     const sub = await loadOwnedSubdomain(tx, user.id, name, { forUpdate: true });
     assertActive(sub);
@@ -199,6 +204,7 @@ export async function createRecord(
     await wakeWorker(tx);
     return recordDto(row, sub.name, deps.config.ROOT_DOMAIN);
   });
+  return withSyncEta(deps, dto);
 }
 
 async function loadRecordForWrite(
@@ -230,7 +236,7 @@ export async function replaceRecord(
   actor: Actor,
 ): Promise<DnsRecord> {
   const input = normalizeRecordInput(raw);
-  return deps.db.transaction(async (tx) => {
+  const dto = await deps.db.transaction(async (tx) => {
     const sub = await loadOwnedSubdomain(tx, user.id, name, { forUpdate: true });
     assertActive(sub);
     const record = await loadRecordForWrite(tx, sub, recordId, ifMatch);
@@ -265,6 +271,7 @@ export async function replaceRecord(
     await wakeWorker(tx);
     return recordDto(row, sub.name, deps.config.ROOT_DOMAIN);
   });
+  return withSyncEta(deps, dto);
 }
 
 export async function deleteRecord(
@@ -275,7 +282,7 @@ export async function deleteRecord(
   ifMatch: number | null,
   actor: Actor,
 ): Promise<DnsRecord> {
-  return deps.db.transaction(async (tx) => {
+  const dto = await deps.db.transaction(async (tx) => {
     const sub = await loadOwnedSubdomain(tx, user.id, name, { forUpdate: true });
     assertActive(sub);
     const record = await loadRecordForWrite(tx, sub, recordId, ifMatch);
@@ -289,6 +296,7 @@ export async function deleteRecord(
     await wakeWorker(tx);
     return recordDto(row, sub.name, deps.config.ROOT_DOMAIN);
   });
+  return withSyncEta(deps, dto);
 }
 
 /** 失敗的紀錄重新排入同步（刪除失敗的會重新排入刪除） */
@@ -298,7 +306,7 @@ export async function retryRecordSync(
   name: string,
   recordId: string,
 ): Promise<DnsRecord> {
-  return deps.db.transaction(async (tx) => {
+  const dto = await deps.db.transaction(async (tx) => {
     const sub = await loadOwnedSubdomain(tx, user.id, name, { forUpdate: true });
     assertActive(sub);
     const record = await loadRecordForWrite(tx, sub, recordId, null);
@@ -326,4 +334,5 @@ export async function retryRecordSync(
     }
     return recordDto(row, sub.name, deps.config.ROOT_DOMAIN);
   });
+  return withSyncEta(deps, dto);
 }

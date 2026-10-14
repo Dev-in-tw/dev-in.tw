@@ -14,13 +14,14 @@ import { and, count, desc, eq, gt, ilike, inArray, lt, or, type SQL, sql } from 
 import { type Actor, type Deps, runInBackground } from "../../context.ts";
 import { dnsSyncJobs, reports, reservedNames, subdomains, users } from "../../db/schema.ts";
 import { AppError } from "../../lib/problem.ts";
+import { batchingStatus } from "../../sync/batching.ts";
 import { wakeWorker } from "../../sync/events-bus.ts";
 import { reconcile } from "../../sync/reconciler.ts";
 import { writeAudit } from "../audit/service.ts";
 import { adminSubdomainDto, adminUserDto, decodeCursor, iso, pageOf, publicUser } from "../dto.ts";
 import { revokeUserSessions } from "../identity/sessions.ts";
 import { suspendUserSubdomains, unsuspendUserSubdomains } from "../moderation/suspension.ts";
-import { zoneUsage } from "../quota.ts";
+import { usageUnit, zoneUsage } from "../quota.ts";
 import { getSetting, getSettings, setSetting } from "../settings.ts";
 import { toSubdomainDtos } from "../subdomains/service.ts";
 
@@ -326,6 +327,9 @@ export async function adminZone(deps: Deps): Promise<ZoneReport> {
       updatedAt: iso(j.updatedAt),
     })),
     lastReconcileAt: report?.at ?? null,
+    provider: deps.provider.kind,
+    usageUnit: usageUnit(deps.config),
+    batching: await batchingStatus(deps),
   };
 }
 

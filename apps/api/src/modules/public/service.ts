@@ -2,6 +2,7 @@ import type { DirectoryEntry, Meta, ServiceStatus, Stats } from "@dit/contract";
 import { and, count, countDistinct, desc, eq, lt, sql } from "drizzle-orm";
 import type { Deps } from "../../context.ts";
 import { dnsRecords, subdomains, users } from "../../db/schema.ts";
+import { batchingStatus } from "../../sync/batching.ts";
 import { queueStats } from "../../sync/queue.ts";
 import { lastReconcileAt } from "../../sync/reconciler.ts";
 import { decodeCursor, iso, pageOf, publicUser } from "../dto.ts";
@@ -122,6 +123,13 @@ export async function getStatus(deps: Deps): Promise<ServiceStatus> {
   const provider: ServiceStatus["components"][number] = runtime.providerAuthFailed
     ? { id: "dns_provider", status: "degraded", detail: "DNS 服務認證失敗，同步暫停中" }
     : { id: "dns_provider", status: "operational", detail: null };
+  // 批次模式（Lazco DNS）：紀錄正常會 pending 一個批次間隔，不能就判定延遲；額度用完而暫停時才算
+  const batching = await batchingStatus(deps);
+  const pausedForBudget =
+    batching?.pausedUntil !== null &&
+    batching?.pausedUntil !== undefined &&
+    new Date(batching.pausedUntil) > now;
+  const lagLimit = batching ? Math.max(300, batching.intervalSeconds + 180) : 300;
   const heartbeatAge = runtime.workerHeartbeat
     ? now.getTime() - runtime.workerHeartbeat.getTime()
     : null;
@@ -129,9 +137,15 @@ export async function getStatus(deps: Deps): Promise<ServiceStatus> {
     ? { id: "sync_worker", status: "degraded", detail: "同步 worker 未啟用" }
     : heartbeatAge === null || heartbeatAge > 30_000
       ? { id: "sync_worker", status: "down", detail: "同步 worker 沒有回應" }
-      : (stats.oldestPendingSeconds ?? 0) > 300 || stats.failed > 0
-        ? { id: "sync_worker", status: "degraded", detail: "同步佇列延遲中" }
-        : { id: "sync_worker", status: "operational", detail: null };
+      : pausedForBudget && stats.pending > 0
+        ? {
+            id: "sync_worker",
+            status: "degraded",
+            detail: "今日 DNS 變更額度已用完，新的變更會在下一個 UTC 日生效",
+          }
+        : (stats.oldestPendingSeconds ?? 0) > lagLimit || stats.failed > 0
+          ? { id: "sync_worker", status: "degraded", detail: "同步佇列延遲中" }
+          : { id: "sync_worker", status: "operational", detail: null };
   const components = [
     { id: "api" as const, status: "operational" as const, detail: null },
     database,
@@ -146,7 +160,7 @@ export async function getStatus(deps: Deps): Promise<ServiceStatus> {
   return {
     overall,
     components,
-    syncQueue: stats,
+    syncQueue: batching ? { ...stats, batching } : stats,
     lastReconcileAt: reconciledAt,
     checkedAt: now.toISOString(),
   };
