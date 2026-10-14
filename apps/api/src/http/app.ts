@@ -10,6 +10,7 @@ import {
   clientIp,
   csrf,
   globalRateLimit,
+  limitBody,
   requestId,
   securityHeaders,
   session,
@@ -121,6 +122,7 @@ export function createApp(deps: Deps, options: AppOptions = {}) {
   app.get("/docs", Scalar({ url: "/api/openapi.json", pageTitle: "Dev-in.tw API" }));
 
   app.use("/v1/*", globalRateLimit(reg.limiter));
+  app.use("/v1/*", limitBody());
   app.use("/v1/*", session());
   app.use("/v1/*", csrf(deps.config.APP_ORIGIN));
 

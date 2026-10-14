@@ -1,4 +1,5 @@
 import type { MiddlewareHandler } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { randomToken } from "../../lib/crypto.ts";
 import { hashIp, rateKeyForIp, resolveClientIp, resolveViaCloudflare } from "../../lib/net.ts";
 import { AppError } from "../../lib/problem.ts";
@@ -69,6 +70,19 @@ export const securityHeaders = (): MiddlewareHandler<AppEnv> => async (c, next) 
   c.header("X-Frame-Options", "DENY");
   if (!c.res.headers.has("Cache-Control")) c.header("Cache-Control", "no-store");
 };
+
+/** 請求 body 上限：最大的合法 body（2,048 字元的 TXT、2,000 字的檢舉內容）都遠小於這個值 */
+export const MAX_BODY_BYTES = 32 * 1024;
+
+export const limitBody = (maxSize = MAX_BODY_BYTES): MiddlewareHandler<AppEnv> =>
+  bodyLimit({
+    maxSize,
+    onError: () => {
+      throw new AppError("VALIDATION_FAILED", "請求內容太大", {
+        errors: [{ path: "(body)", code: "too_large", message: `body 不能超過 ${maxSize} bytes` }],
+      });
+    },
+  });
 
 /**
  * 解析 __Host-dit_session（同一個請求只查一次）。Bearer token（PAT）是 P2，目前忽略。
