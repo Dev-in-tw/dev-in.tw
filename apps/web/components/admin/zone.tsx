@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { RefreshCw, TriangleAlert } from "lucide-react";
+import { RefreshCw, RotateCcw, TriangleAlert } from "lucide-react";
 import { useId, useState } from "react";
 import { toast } from "sonner";
 import { Meter } from "@/components/app/page-header.tsx";
@@ -34,6 +34,14 @@ export function AdminZone() {
       setTimeout(() => queryClient.invalidateQueries({ queryKey: ["adminZone"] }), 1500);
     },
     onError: (e) => toast.error("對帳失敗", { description: errorMessage(e) }),
+  });
+  const retry = useMutation({
+    mutationFn: (jobId: number) => api("adminRetrySyncJob", { params: { jobId: String(jobId) } }),
+    onSuccess: (_, jobId) => {
+      toast.success(`已重新排入 #${jobId}`);
+      queryClient.invalidateQueries({ queryKey: ["adminZone"] });
+    },
+    onError: (e) => toast.error("重新排入失敗", { description: errorMessage(e) }),
   });
 
   if (zone.error) {
@@ -157,16 +165,40 @@ export function AdminZone() {
           {z.deadJobs.length === 0 ? (
             <p className="text-sm text-ink-muted">沒有失敗的同步工作。</p>
           ) : (
-            <DataTable label="失敗的同步工作" head={["#", "種類", "最後錯誤", "更新時間"]}>
-              {z.deadJobs.map((j) => (
-                <tr key={j.id}>
-                  <td className="zone px-3 py-2.5">{j.id}</td>
-                  <td className="zone px-3 py-2.5">{j.kind}</td>
-                  <td className="zone px-3 py-2.5 text-danger">{j.lastError ?? "—"}</td>
-                  <td className="zone px-3 py-2.5 text-ink-muted">{formatDateTime(j.updatedAt)}</td>
-                </tr>
-              ))}
-            </DataTable>
+            <>
+              <p className="mb-3 text-sm text-ink-muted">
+                purge_subdomain
+                失敗時子網域會停在「釋出中」，擁有者若申請刪除帳號，帳號資料也要等清除完成才會刪除。
+                系統每小時會自動以退避重新排入；確認 DNS 服務恢復後，也可以手動重新排入。
+              </p>
+              <DataTable
+                label="失敗的同步工作"
+                head={["#", "種類", "最後錯誤", "更新時間", "操作"]}
+              >
+                {z.deadJobs.map((j) => (
+                  <tr key={j.id}>
+                    <td className="zone px-3 py-2.5">{j.id}</td>
+                    <td className="zone px-3 py-2.5">{j.kind}</td>
+                    <td className="zone px-3 py-2.5 text-danger">{j.lastError ?? "—"}</td>
+                    <td className="zone px-3 py-2.5 text-ink-muted">
+                      {formatDateTime(j.updatedAt)}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => retry.mutate(j.id)}
+                        disabled={retry.isPending}
+                        aria-label={`重新排入 #${j.id}`}
+                      >
+                        <RotateCcw aria-hidden />
+                        重新排入
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </DataTable>
+            </>
           )}
         </div>
       </section>
