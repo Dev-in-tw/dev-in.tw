@@ -1,4 +1,4 @@
-> **重點摘要**：我們只收服務運作真正需要的資料，主要是你的 GitHub 公開身分與一個已驗證的 email。**不收**身分證字號、地址、電話、生日，**不存** GitHub access token，**不放**廣告或追蹤工具，**不賣**資料。DNS 紀錄本來就是公開的；成員展示預設不公開。你可以隨時刪除帳號，也可以寫信行使個資法上的權利。
+> **重點摘要**：我們只收服務運作真正需要的資料，主要是你的 GitHub 公開身分與一個已驗證的 email。**不收**身分證字號、地址、電話、生日，**不存** GitHub access token，**不放**廣告或追蹤工具，**不賣**資料。DNS 紀錄本來就是公開的；成員展示預設不公開。每一類資料都有保存期限（第 8 條），到期由系統自動刪除。你可以隨時在設定頁下載你的資料或刪除帳號，也可以寫信行使個資法上的權利。
 
 本政策依個人資料保護法（下稱「個資法」）第 8 條與第 9 條，說明 Dev-in.tw（下稱「本服務」）如何蒐集、處理與利用你的個人資料。
 
@@ -27,6 +27,7 @@
 - **登入裝置資訊**：每個登入 session 會記錄完整 IP 位址、瀏覽器的 User-Agent、登入與最後使用時間。用途是讓你在設定頁管理登入裝置（頁面上只顯示概略位置），以及偵測異常登入。
 - **操作紀錄（稽核紀錄）**：誰在什麼時間做了什麼操作，例如登入、新增紀錄、釋出子網域，連同當時的 IP 位址。用途是資安稽核、處理檢舉與釐清爭議。
 - **限流用的 IP**：為了防止濫用，伺服器會以 IP 位址計算請求次數。這些計數只存在記憶體中，不寫入資料庫。
+- **同意紀錄**：你同意的服務條款與隱私權政策版本、同意的時間，以及當時的情境（首次登入、申請子網域，或條款更新後在控制台重新同意）。用途是證明你同意了哪一個版本。這份紀錄不包含 IP 或瀏覽器資訊。
 - **應用程式日誌**：本服務的 API 每個請求記錄一行，內容是時間、路徑、狀態碼，以及**經過加鹽雜湊**的 IP，不記錄原始 IP、cookie、token 或 email。網站前方的 Cloudflare 與反向代理，可能依各自的設定記錄連線資訊（見第 6 條）。
 
 ### 檢舉時提供
@@ -34,7 +35,7 @@
 - **被檢舉的子網域、檢舉類別與說明**。
 - **聯絡 email**（選填）：用來回覆你處理結果。
 - **登入狀態**：你登入後檢舉，檢舉會和你的帳號關聯。
-- **IP 的加鹽雜湊值**：用來限流與找出重複檢舉，我們無法從雜湊值還原你的 IP。
+- **IP 的加鹽雜湊值**：用來限流與找出重複檢舉，我們無法從雜湊值還原你的 IP。檢舉相關的紀錄（包括稽核紀錄）不另外保存你的原始 IP。
 
 ### 我們不蒐集的資料
 
@@ -51,7 +52,7 @@
 ## 4. 利用的期間、地區、對象與方式
 
 - **期間**：在上述目的存續期間，以及第 8 條所列的保存期限內。
-- **地區**：資料存放在 Lazco 管理的伺服器。我們使用的第三方服務（第 6 條）可能在臺灣以外的地區處理資料，包括美國。
+- **地區**：資料存放在 Lazco 管理的伺服器；資料庫的每日備份存放在 Lazco 管理的 Cloudflare R2 儲存空間。我們使用的第三方服務（第 6 條）可能在臺灣以外的地區處理資料，包括美國。
 - **對象**：
   - 我們與負責維運的小組成員。管理員可以看到使用者的 email、GitHub 帳號建立日期、子網域與操作紀錄，僅在處理審核、檢舉、停權與資安事件時使用。
   - 第 6 條所列的第三方服務，只提供各自運作所需的資料。
@@ -68,7 +69,7 @@
 ## 6. 第三方服務
 
 - **GitHub**（登入）：處理 OAuth 登入。網頁上的頭像直接從 GitHub 的 `avatars.githubusercontent.com` 載入，所以 GitHub 會看到瀏覽者的 IP 位址與瀏覽器資訊。
-- **Cloudflare**（網站代理、DNS 代管、人機驗證 Turnstile）：`dev-in.tw` 網站的所有連線都會經過 Cloudflare 的網路，HTTPS 加密在 Cloudflare 解開後再轉送到我們的伺服器，因此 Cloudflare 會處理你的 IP 位址、瀏覽器資訊與請求內容。你的 DNS 紀錄會同步到 Cloudflare。你在申請子網域或送出檢舉時，Turnstile 會在你的瀏覽器執行，Cloudflare 會收到你的 IP 位址與瀏覽器資訊；我們的伺服器向 Cloudflare 驗證時也會一併附上你的 IP。
+- **Cloudflare**（網站代理、DNS 代管、人機驗證 Turnstile）：`dev-in.tw` 網站的所有連線都會經過 Cloudflare 的網路，HTTPS 加密在 Cloudflare 解開後再轉送到我們的伺服器，因此 Cloudflare 會處理你的 IP 位址、瀏覽器資訊與請求內容。你的 DNS 紀錄會同步到 Cloudflare。資料庫的每日備份存放在 Cloudflare R2（物件儲存），由 Lazco 管理，只有負責維運的小組成員能存取。你在申請子網域或送出檢舉時，Turnstile 會在你的瀏覽器執行，Cloudflare 會收到你的 IP 位址與瀏覽器資訊；我們的伺服器向 Cloudflare 驗證時也會一併附上你的 IP。
 - **Discord**（內部告警）：有新的待審申請或檢舉時，系統會發送通知到維運小組的私人頻道，內容只有必要的營運資訊，例如子網域名稱、申請人的 GitHub 帳號名稱、待審原因或檢舉類別，不含 email 與 IP。
 - **公共 DNS 解析器**（Cloudflare、Google、Quad9、TWNIC Quad101）：你在控制台檢查紀錄是否生效時，我們的伺服器會向這些解析器查詢你的網域名稱，不會傳送你的個人資料。
 
@@ -95,16 +96,24 @@
 - **稽核紀錄**：保存 1 年後刪除；其中的 IP 位址在 90 天後清除。
 - **子網域與 DNS 紀錄**：保存到你釋出子網域或刪除帳號為止。被停權的子網域，資料會保留到解除停權或釋出為止。
 - **名稱冷卻紀錄**：名稱釋出後保存 30 天，到期刪除。
-- **檢舉紀錄**：在處理完成後，於處理爭議、申訴與防止重複濫用的必要期間內保存。不再需要時，我們會刪除，或刪除其中的聯絡 email。你也可以請求我們刪除你留下的聯絡 email。
-- **日誌與資料庫備份**：依伺服器的日誌輪替與備份排程保存，過期後自動覆寫。已刪除的資料可能在備份中留存到該份備份過期為止，期間不會用於任何其他用途。
+- **同意紀錄**：保存到你刪除帳號為止。
+- **檢舉紀錄**：處理期間完整保存。檢舉處理完成（成立或不成立）滿 1 年後，系統會自動清除其中的聯絡 email、IP 的雜湊值、檢舉說明，以及與檢舉人帳號的關聯，只保留子網域名稱、檢舉類別、處理結果與時間，作為統計與防止重複濫用的依據。在那之前，你也可以請求我們刪除你留下的聯絡 email。
+- **應用程式日誌**：以容器日誌輪替保存，最長 30 天，過期後自動刪除。
+- **資料庫備份**：每天備份一次，保留最近 14 份（約 14 天），存放在 Lazco 管理的 Cloudflare R2，過期的備份自動刪除。已刪除的資料可能在備份中留存到該份備份過期為止（最長約 14 天），期間只會在災難復原時使用，不會用於任何其他用途。
 
 ## 9. 刪除帳號時會發生什麼
 
 在設定頁刪除帳號後：
 
 1. **立即**：清除你的 email 與顯示名稱、登出所有裝置，你名下所有子網域開始釋出。DNS 紀錄會從 Cloudflare 撤下並刪除，名稱進入 30 天冷卻期，**無法復原**。
-2. **子網域清除完成後**：系統的定期清理工作會刪除你的帳號資料。正常情況下會在幾個小時內完成。
-3. **會留下的資料**：稽核紀錄會依第 8 條的期限保存。為了資安稽核與爭議處理，稽核紀錄中的 GitHub 帳號名稱與子網域名稱會保留到該筆紀錄刪除為止，但不再連結到你的帳號。你送出的檢舉，會依第 8 條處理。
+2. **子網域清除完成後**：系統每小時執行的清理工作會刪除你的帳號資料，包括 GitHub 數字 ID、帳號名稱、頭像網址、帳號建立日期、登入 session（含 IP 與 User-Agent）、同意紀錄與尚未完成的轉移。正常情況下會在幾個小時內完成。DNS 服務暫時故障、紀錄一時清不掉時，系統會自動重試並通知維運小組處理，清除完成後一樣會刪除帳號資料。
+3. **會留下的資料**：
+   - 稽核紀錄依第 8 條的期限保存（1 年，其中的 IP 在 90 天後清除）。為了資安稽核與爭議處理，稽核紀錄中的 GitHub 帳號名稱與子網域名稱會保留到該筆紀錄刪除為止，但不再連結到你的帳號。
+   - 釋出名稱的冷卻紀錄保存 30 天，不連結到你的帳號。
+   - 你送出的檢舉不再連結到你的帳號，並依第 8 條在處理完成滿 1 年後清除聯絡 email 與內容。
+   - 資料庫備份中的資料，會在該份備份過期時一併刪除（最長約 14 天）。
+
+刪除帳號前，你可以先在設定頁下載你的資料（第 11 條）。
 
 帳號資料刪除前，你如果又用同一個 GitHub 帳號登入，刪除帳號的申請就會取消，但已經開始釋出的子網域不會恢復。
 
@@ -130,7 +139,7 @@
 4. 請求停止蒐集、處理或利用
 5. 請求刪除
 
-**怎麼行使**：大部分可以直接在控制台完成，包括查看帳號資料、子網域、DNS 紀錄、登入裝置與操作紀錄，修改顯示名稱，關閉公開展示，釋出子網域與刪除帳號。其他請求，請用你在 GitHub 驗證過的 email 寫信到 [hello@dev-in.tw](mailto:hello@dev-in.tw)。為了確認是你本人，我們可能會請你登入本服務或以其他方式證明你能控制該 GitHub 帳號。
+**怎麼行使**：大部分可以直接在控制台完成，包括查看帳號資料、子網域、DNS 紀錄、登入裝置與操作紀錄，修改顯示名稱，關閉公開展示，釋出子網域與刪除帳號。**製給複製本**：在設定頁按「下載 JSON」，就能下載一份我們保存的你的資料，包括帳號資料、子網域、DNS 紀錄、操作紀錄（含你操作時的 IP）、登入裝置、轉移紀錄、同意紀錄與你登入時送出的檢舉；檔案不含其他使用者的個人資料，每小時最多下載 3 次。其他請求，請用你在 GitHub 驗證過的 email 寫信到 [hello@dev-in.tw](mailto:hello@dev-in.tw)。為了確認是你本人，我們可能會請你登入本服務或以其他方式證明你能控制該 GitHub 帳號。
 
 **處理期限**：依個資法第 13 條，查詢、閱覽或製給複製本的請求，我們會在 15 天內決定；補充、更正、停止或刪除的請求，會在 30 天內決定。必要時可以各延長一次，但會以書面告知你延長的原因。目前我們不收取任何費用。
 
@@ -146,7 +155,7 @@
 
 ## 13. 政策修改
 
-我們可能修改本政策。修改後會在本頁公布，並更新上方的版本與生效日期；對你權益有重大影響的修改，會在生效前至少 14 天於網站公告。蒐集目的或資料類別有變更時，我們會依個資法的規定再次告知你。
+我們可能修改本政策。修改後會在本頁公布，並更新上方的版本與生效日期，修改內容寫在下方的修訂紀錄；對你權益有重大影響的修改，會在生效前至少 14 天於網站公告。蒐集目的或資料類別有變更時，我們會依個資法的規定再次告知你。本政策或服務條款更新版本後，你下次使用控制台時，我們會請你閱讀並同意新版本，並記錄你同意的版本與時間；同意前仍可以登出、下載你的資料或寫信請我們刪除帳號。
 
 ## 14. 聯絡我們
 
@@ -155,6 +164,7 @@
 
 ## 修訂紀錄
 
+- v1.1（2026-10-14）：明訂保存期限：檢舉處理完成滿 1 年後清除聯絡 email、IP 雜湊值、說明與檢舉人關聯；應用程式日誌最長 30 天；資料庫每日備份保留 14 份並存放於 Lazco 管理的 Cloudflare R2（第 4、6、8 條）。新增同意紀錄（第 2、8、13 條），以及在設定頁下載自己的資料（第 11 條）。補充刪除帳號時會刪除與會留下的資料，以及清除失敗時的處理方式（第 9 條）。說明檢舉相關紀錄不保存原始 IP（第 2 條）。
 - v1.0（2026-10-14）：首次公告。
 
 <div lang="en">
@@ -163,6 +173,6 @@
 
 *This summary is for convenience only. The Traditional Chinese version above is the binding version.*
 
-Lazco Labs (Lazco Corporation, 拉資科科技有限公司) operates Dev-in.tw and is responsible for your data under Taiwan's Personal Data Protection Act. We collect your GitHub numeric ID, username, display name, avatar URL, account creation date and primary verified email when you sign in with GitHub. We do not keep your GitHub access token or access your repositories. We also store your subdomains and DNS records, login sessions (full IP address and user agent), an audit log (with IP addresses, cleared after 90 days, entries deleted after one year), abuse reports (optional contact email and a salted hash of the reporter's IP), and application request logs that contain only salted IP hashes. Data is stored on servers managed by Lazco. Third parties: GitHub (sign-in and avatars), Cloudflare (proxies all traffic to the website, DNS hosting and Turnstile), Discord (internal alerts without emails or IPs), and public DNS resolvers (domain names only). DNS records are public by nature; the member directory is opt-in. We use only two essential cookies and no analytics or advertising trackers. When you delete your account, your email and display name are cleared immediately, all your subdomains are released (30-day name cooldown), and the account record is deleted once the subdomains are gone. You may request access, copies, correction, restriction or deletion of your data at hello@dev-in.tw.
+Lazco Labs (Lazco Corporation, 拉資科科技有限公司) operates Dev-in.tw and is responsible for your data under Taiwan's Personal Data Protection Act. We collect your GitHub numeric ID, username, display name, avatar URL, account creation date and primary verified email when you sign in with GitHub. We do not keep your GitHub access token or access your repositories. We also store your subdomains and DNS records, login sessions (full IP address and user agent), an audit log (with IP addresses, cleared after 90 days, entries deleted after one year), a record of which terms and privacy policy versions you accepted and when, abuse reports (optional contact email and a salted hash of the reporter's IP; the contact email, hash, details and reporter link are erased one year after the report is closed), and application request logs that contain only salted IP hashes and are kept for at most 30 days. Data is stored on servers managed by Lazco; daily database backups are kept for 14 days in Cloudflare R2 managed by Lazco. Third parties: GitHub (sign-in and avatars), Cloudflare (proxies all traffic to the website, DNS hosting, Turnstile and backup storage), Discord (internal alerts without emails or IPs), and public DNS resolvers (domain names only). When the terms or this policy change, we ask you to accept the new version the next time you use the dashboard. DNS records are public by nature; the member directory is opt-in. We use only two essential cookies and no analytics or advertising trackers. When you delete your account, your email and display name are cleared immediately, all your subdomains are released (30-day name cooldown), and the account record, sessions and consent records are deleted once the subdomains are gone (failed DNS clean-ups are retried automatically). You can download a JSON copy of your data from the settings page, and you may request access, copies, correction, restriction or deletion of your data at hello@dev-in.tw.
 
 </div>

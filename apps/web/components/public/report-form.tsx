@@ -135,7 +135,9 @@ export function ReportForm() {
           autoComplete="email"
           aria-describedby={`${id}-email-hint`}
         />
-        <FieldHint id={`${id}-email-hint`}>只用來回覆這次檢舉，不會公開。</FieldHint>
+        <FieldHint id={`${id}-email-hint`}>
+          只用來回覆這次檢舉，不會公開；處理完成滿 1 年後刪除。
+        </FieldHint>
       </div>
       <Turnstile siteKey={meta.data?.turnstileSiteKey} onToken={setToken} resetSignal={reset} />
       <FieldError>{submit.isError ? errorMessage(submit.error) : null}</FieldError>

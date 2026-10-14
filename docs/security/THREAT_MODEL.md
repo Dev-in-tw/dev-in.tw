@@ -32,7 +32,7 @@ api ──HTTPS──▶ GitHub OAuth / REST、Cloudflare Turnstile、四個固�
 | Cloudflare API token | 機密 | Infisical → Dokploy 環境變數 | 同上（可任意改 zone） |
 | Session token（`__Host-dit_session`） | 機密 | 瀏覽器 cookie；DB 只存 SHA-256 | 冒用使用者；admin session 被盜等於控制整個平台 |
 | `SESSION_SECRET`（簽 OAuth state cookie）、GitHub client secret、Turnstile secret、`REPORT_IP_SALT` | 機密 | Infisical | 偽造登入流程、繞過人機驗證、還原 IP 雜湊 |
-| 使用者個資：GitHub id / login、主要 email、session 的 IP 與 User-Agent、稽核紀錄 IP（90 天） | 個資 | PostgreSQL | 個資外洩（PLAN §3.11 與隱私權政策的承諾） |
+| 使用者個資：GitHub id / login、主要 email、session 的 IP 與 User-Agent、稽核紀錄 IP（90 天）、同意紀錄（版本與時間） | 個資 | PostgreSQL | 個資外洩（PLAN §3.11 與隱私權政策的承諾） |
 | 檢舉內容與聯絡 email | 個資 | PostgreSQL | 檢舉人身分外洩、報復 |
 | 管理功能（停權、核准、保留字、強制對帳） | 高權限 | API `/admin/*` | 惡意停權、釋出他人名稱、繞過大量刪除煞車 |
 | 可用性：API、worker、zone 紀錄配額（1,000 筆）、Cloudflare API 額度 | 營運 | — | 服務中斷、無法申請 |
@@ -96,7 +96,9 @@ api ──HTTPS──▶ GitHub OAuth / REST、Cloudflare Turnstile、四個固�
 | 威脅 | 緩解 | 狀態 |
 |---|---|---|
 | 錯誤訊息洩漏內部細節 | 5xx 只回通用訊息與 request id；上游錯誤只回 `UPSTREAM_*`；production 不做回應 schema 驗證的 500 細節 | 已緩解 |
-| Log 洩漏機密或個資 | 不記 cookie、token、OAuth code、完整 email；pino redact 為最後防線；IP 只記加鹽雜湊 | 已緩解（Traefik access log 見 R5） |
+| Log 洩漏機密或個資 | 不記 cookie、token、OAuth code、完整 email；pino redact（含 `ip`、`clientIp`、`contactEmail`）為最後防線；IP 只記加鹽雜湊；Discord 告警只放子網域名稱與 GitHub login | 已緩解（Traefik access log 見 R5） |
+| Session 被盜後下載整份個資（`GET /me/export`） | 只含本人的資料，不含 token 雜湊與其他使用者的 email / IP；每人每小時 3 次；每次寫 `user.export` 稽核 | 已緩解 |
+| 個資保存超過政策承諾的期限 | housekeeping 每小時執行：結案滿 1 年的檢舉清除聯絡 email、IP 雜湊、內容與檢舉人關聯；卡在 releasing 的子網域以退避重新排入清除，帳號列在清除後刪除 | 已緩解 |
 | 敏感回應被快取 | API 一律 `Cache-Control: no-store`（除公開的 `openapi.json`）；登入後頁面 `private, no-store` | 已緩解 |
 | 跨站讀取 API 回應 | 沒有 CORS（`openapi.json` 例外，公開且不帶 cookie）、CORP `same-origin`、COOP `same-origin` | 已緩解 |
 | 子網域存在與否、轉移對象是否註冊過 | 不是自己的子網域回 404；轉移邀請每人每小時 10 次 | 部分 |
@@ -180,3 +182,6 @@ api ──HTTPS──▶ GitHub OAuth / REST、Cloudflare Turnstile、四個固�
 8. DNS 目標與名稱規則（`packages/dns/test/security-rules.test.ts`、`ip-rules.test.ts`、`record-rules.test.ts`）。
 9. 對帳的大量刪除煞車與 `SYSTEM_RECORD_NAMES`（`reconcile.test.ts`、`security-abuse.test.ts`）。
 10. 接管偵測只查固定 resolver、兩個都 NXDOMAIN 才通知（`security-takeover.test.ts`）。
+11. 個資控制（隱私權政策 v1.1）：日誌與告警不含 email / 原始 IP（`privacy-logging.test.ts`）、檢舉保存期限
+    （`privacy-retention.test.ts`）、刪除帳號在 purge 失敗後仍會完成（`privacy-deletion.test.ts`）、同意紀錄
+    （`privacy-consent.test.ts`）、資料匯出不含他人個資與機密（`privacy-export.test.ts`）。
