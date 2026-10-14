@@ -719,7 +719,7 @@ export interface DnsProvider {
 }
 ```
 
-實作有兩個：`CloudflareProvider`（正式）與 `MemoryProvider`（本機與測試，`DNS_PROVIDER=memory`）。這個 port 有實際用途：§6 Q1 如果決定改用自架 DNS（Lazco 的 `cloud-infra-dns`），只要再寫一個 adapter。
+實作有三個：`CloudflareProvider`（正式）、`MemoryProvider`（本機與測試，`DNS_PROVIDER=memory`）與 `LazcoDnsProvider`（Lazco 自建 DNS，`DNS_PROVIDER=lazco`，以 RRset 批次寫入，見 §3.8.1）。provider 沒有 comment 時（`supportsComments: false`），所有權改由 DB 判斷；有 `rrsets` 時 worker 改用批次寫入。
 
 **寫入路徑（以新增紀錄為例）**
 
@@ -789,6 +789,191 @@ restore_subdomain（解除停權）：替每一筆紀錄排入 upsert_record
 **一致性模型**：最終一致。正常情況下 202 之後 1 秒內就會 synced。UI 一定要顯示 pending 狀態（§4.4）。DR 時：還原 DB，跑一次 reconcile，就能重建整個 zone。
 
 **CF API token**：權限只給 `Zone:DNS:Edit` 與 `Zone:Read`，只限 `dev-in.tw` 這個 zone，並開啟 **Client IP filtering**，限定為 Dokploy 主機的出口 IP。
+
+### 3.8.1 Lazco DNS 遷移（`DNS_PROVIDER=lazco`）
+
+dev-in.tw 目前仍在 Cloudflare（§7.1）。程式已支援把 zone 搬到 Lazco 自建 DNS；**何時切換由擁有者決定**，
+前提是 §7.1 列的條件都已滿足（cloud-backend 接受限定 zone 的 API token、信箱改用 Google Workspace 別名網域）。
+切回 Cloudflare 只需要改設定（見下方回滾步驟）。
+
+**Lazco DNS 的合約**（Lazco Cloud 公開 API，cloud-backend `src/api/dns.ts` 轉發 cloud-infra-dns 的 `dns-api`；
+規則以 2026-10-10 的 main 為準）
+
+- 端點：`GET <LAZCO_DNS_API_URL>/v1/dns/zones/{id}`、`GET …/rrsets`、`PATCH …/rrsets`，
+  `Authorization: Bearer lz_live_…`（限定 dev-in.tw 這個 zone 的 API token）。
+- 單位是 **RRset**（name + type，共用一個 TTL）：沒有紀錄 id、沒有 comment。apex 的 SOA／NS 由 Lazco 管理（`managed: true`），
+  不能寫，也不算進 RRset 上限。
+- 寫入只有 `PATCH …/rrsets`：`REPLACE`／`DELETE` 的批次，**全有或全無**，一批最多 100 個變更、一個 RRset 最多 100 個值，
+  必須帶 `If-Match: "<version>"`（沒帶 428、過期 412）；同 zone 有其他寫入時 409 `DNS_CHANGE_IN_PROGRESS`（`Retry-After: 2`）；
+  `DELETE` 可帶 `expectedRecords`。
+- **每個 zone 每個 UTC 日最多 90 批**（進到 PowerDNS 後失敗的也算），超過回 429 `DNS_DAILY_CHANGE_LIMIT`。
+  在 Lazco 面板手動改紀錄也吃同一份額度。
+- 另有 cloud-backend 的組織限流：寫入（`dns_write`）每小時 120 次，超過回 429 `RATE_LIMITED` 與 `Retry-After`。
+- TTL 60–86,400；不支援 ALIAS／CNAME flattening，zone apex 不能是 CNAME。
+- TXT／CAA 的值不能有 `"`、`\` 或非 ASCII；MX／SRV 的目標只能用字母、數字與連字號（不能有底線）；`_lazco-verify` 是保留 label。
+
+**Adapter**（`apps/api/src/adapters/lazco-dns/`）
+
+- 紀錄 id 以 `<fqdn>|<TYPE>|<canonical value>` 合成：兩邊（DB 的期望值、Lazco 讀回的值）用同一套正規化
+  （主機名稱小寫去結尾點、AAAA 展開、TXT 解碼後比較、CAA 解出值），所以 id 穩定、對帳不會誤判。
+- TTL `1`（自動）寫成 300 秒；比較時兩邊都先正規化。
+- 讀改寫：`GET rrsets` → 依期望狀態算出整個 RRset → `PATCH`（REPLACE 整個 RRset，最後一個值刪掉時 DELETE 並帶
+  `expectedRecords`）。412、409、504 `DNS_OUTCOME_UNKNOWN`、逾時都**重新讀取再規劃**（最多 3 次）：計畫是從期望狀態算出來的，
+  已經生效的變更再算一次會是空的，不會重複套用。202 `pending` 視為已送出，由對帳再確認。
+- 超過 100 個變更時依名稱分組切成多批（同名的變更一定在同一批，例如刪 A、加 CNAME），每批扣一個額度。
+- `SYSTEM_RECORD_NAMES` 的 FQDN 在 adapter 層也拒絕寫入（最後一道防線，規劃時已經先排除）。
+- 錯誤分類（依 `code`，上游原文不外傳）：
+
+| Lazco 回應 | 類型 | worker 的處理 |
+|---|---|---|
+| 401、任何 403（token 失效或範圍不含此 zone、`SESSION_REQUIRED`、`KYC_REQUIRED`、`DNS_ZONE_SUSPENDED`…） | auth | 暫停 worker 5 分鐘、critical 告警、`/status` degraded |
+| 404 | not_found | 退避重試 |
+| 409（`DNS_CHANGE_IN_PROGRESS`、`DNS_ZONE_NOT_WRITABLE`）、412、428、5xx、504、逾時 | transient | adapter 內重新讀取；用完次數後退避重試，最多 8 次後 dead |
+| 429 `RATE_LIMITED` | transient + `retryAt` | 延到 `Retry-After`（最長 1 小時），不算重試次數 |
+| 429 `DNS_DAILY_CHANGE_LIMIT`（或本地額度用完） | capacity + `retryAt` | 暫停到下一個 UTC 日 00:01，不算重試次數、不標錯誤、warning 告警 |
+| 422 `DNS_RRSET_LIMIT_REACHED`、`DNS_ZONE_SIZE_LIMIT_REACHED` | capacity | 新增／修改標 `ZONE_CAPACITY_EXHAUSTED` 並關閉註冊（同 Cloudflare 81045）；刪除照常送出 |
+| 其他 422／400 | permanent | 依 `issues[].index` 對回那幾筆紀錄標錯誤，排除後重送一次 |
+
+**批次聚合**（`sync/batch.ts`、`sync/batching.ts`、`SyncWorker#tickBatched`）
+
+- provider 有 `rrsets`（Lazco DNS）時，worker 不再逐筆寫入。到期的工作要同時滿足兩個條件才一次取出、合成一批：
+  1. 最後一筆變更安靜 10 秒，或最早一筆已等 60 秒（連續幾次編輯併成一批）；
+  2. 到了排程時間：**間隔 = 今天（UTC）剩下的時間 ÷ 今天剩下的批次額度**，至少 `LAZCO_DNS_MIN_BATCH_INTERVAL_SECONDS`。
+     額度平均分配到一天，所以不會在 UTC 0 點前用完。一天開始時（80 批、24 小時）約每 18 分鐘一批；前半天沒什麼變更時，
+     後半天的間隔會縮短。閒置之後的第一筆變更約 10 秒內送出。
+- 還沒到時間就**不取件**（不增加 attempts、不上鎖）。批次的鎖是 5 分鐘，涵蓋重新讀取與重送。
+- 送出前用 `packages/dns` 的 `validateRecord`（含 `providerViolations(…, "lazco")`）再驗一次：一筆壞資料標成
+  `VALIDATION_FAILED`，不會讓整批失敗而浪費額度。API 寫入時也會先擋下 Lazco 存不了的內容。
+- 規劃規則：
+  - 一個 RRset 的新內容 = 現有的值，扣掉「**批次內的工作明確擁有**」的值（被修改或刪除的紀錄寫過的值、清除中的子網域範圍內
+    有擁有者的值），再加上批次內新增／修改的期望值。**沒有擁有者的值（管理員手動建立）與擁有者已不在 DB 的值（孤兒）一律保留**，
+    交給 reconciler 判斷，受大量刪除煞車保護。
+  - 同一個 RRset 的 TTL 取組內所有 DB 紀錄正規化後的最小值；只剩外來的值時保留原 TTL。
+  - 批次內新增的紀錄造成同名同時有 CNAME 與其他類型時，只排除那幾筆（`RECORD_CONFLICT`），其他照常送出。
+  - 改類型（A → CNAME）時，舊 RRset 移除值、新 RRset 加值，在同一個 PATCH。
+  - 同名還有刪除中、但不在這一批的紀錄（刪除在退避中）時，新增先等它（同單筆模式，最多 10 分鐘）。
+- 額度存在 `dns_change_budget`（每個 zone、每個 UTC 日一列），**每次 PATCH 之前原子遞增**；reconciler 刪孤兒也扣同一份。
+  保守計算：每送出一次就算一次（Lazco 實際上不把 412、409、驗證錯誤算進上限）。
+- 前端：pending／deleting 的紀錄帶 `syncEta`（預計寫入時間），`record.sync` 事件也帶；`/status` 與 `/admin/zone` 帶
+  `batching`（間隔、下一批、今日已用／額度、暫停到何時）。`/status` 的「同步佇列延遲」門檻改為「批次間隔 + 3 分鐘」，
+  額度用完而暫停時顯示 degraded。
+- Cloudflare 與 memory provider 維持逐筆寫入，行為不變。
+
+**所有權與對帳**（`sync/ownership.ts`）
+
+- Lazco 沒有 comment，無法在紀錄上標 `dit:<recordId>`。一個值屬於哪一筆 DB 紀錄，依序看：
+  1. `dns_provider_ownership`（`zone`、`provider_id`、`record_id`）：worker **PATCH 之前**先寫入（intent），成功後修剪；
+  2. DB 紀錄（任何狀態）的期望值算出的 id 相同。
+- 列出 provider 紀錄時把判斷出的擁有者以 `dit:<recordId>` 填回 `comment`，所以 reconcile、`importZoneNames`、purge 的既有邏輯
+  完全不變：missing／modified 重新排入；orphan（有擁有者但 DB 沒有，或子網域已停權）受大量刪除煞車保護才刪；unmanaged 只回報；
+  `SYSTEM_RECORD_NAMES` 永遠不碰；沒有擁有者的 label 才會匯入成保留字（使用者的 label 不會）。
+- 對帳刪掉孤兒後同時刪掉它的所有權列；provider 上已經沒有、超過 1 小時沒更新的所有權列（失敗寫入留下的 intent）也會清掉。
+- TTL 以 RRset 比較，而且只在同一 RRset 的紀錄全部 synced 時才比較，避免還沒送出的變更被當成漂移。
+- 換 provider 或 zone 時（`settings.dns_provider` 記錄上一次啟動的 provider 與 zone id），啟動時清掉所有
+  `provider_record_id`，由對帳重新比對。`dns_provider_ownership` 以 zone 區分，不清。
+
+**容量：`ZONE_RECORD_LIMIT` 的語意**
+
+| `DNS_PROVIDER` | 單位 | 建議值 |
+|---|---|---|
+| `cloudflare` | 紀錄數（每一筆值） | 1,000（Free zone，§7） |
+| `lazco` | **RRset 數**（同名同類型算一個，不含 apex 的 SOA／NS） | Lazco 的 `maxRrsetsPerZone`（預設 500；`GET /v1/dns/limits`） |
+
+- 用量 = 快照中沒有任何受管值的 RRset（系統紀錄、手動建立的）+ DB 受管紀錄以 (子網域, 名稱, 類型) 去重的數量；
+  可用上限仍是 `ZONE_RECORD_LIMIT − ZONE_HEADROOM`。同名同類型的第二筆紀錄不多佔容量。
+- 啟動時若 `ZONE_RECORD_LIMIT` 大於 Lazco 回報的上限，會記一筆 warning（Lazco 的上限優先）。
+- 從 1,000 筆紀錄改成 500 個 RRset：一般使用者只有 1–3 個 RRset，影響不大；最壞情況（每筆紀錄都是不同的 RRset）容量減半，
+  需要時請 Lazco operator 提高這個 zone 的上限。
+
+**設定**
+
+| 變數 | 預設 | 說明 |
+|---|---|---|
+| `DNS_PROVIDER` | production：`cloudflare` | 設為 `lazco` |
+| `LAZCO_DNS_API_URL` | `https://api.lazco.tw` | production 必須是 https |
+| `LAZCO_DNS_TOKEN` | — | 限定 dev-in.tw zone 的 API token；`DNS_PROVIDER=lazco` 時缺值拒絕啟動 |
+| `LAZCO_DNS_ZONE_ID` | — | Lazco 的 zone id；缺值拒絕啟動；對應的 zone 名稱不是 `ROOT_DOMAIN` 時拒絕啟動 |
+| `LAZCO_DNS_DAILY_BATCH_BUDGET` | 80（1–89） | Dev-in 每天最多送幾批；留 10 批給人工操作與誤差 |
+| `LAZCO_DNS_MIN_BATCH_INTERVAL_SECONDS` | 60 | 兩批之間的最短間隔（也讓每小時最多約 60 次，低於組織限流 120 次） |
+| `ZONE_RECORD_LIMIT` | — | 改成 RRset 上限（見上表） |
+| `TRUST_CLOUDFLARE` | `false` | 不再有 Cloudflare 代理時必須是 `false` |
+
+`DNS_PROVIDER=lazco` 也不可搭配 `AUTH_DEV_LOGIN=true`（同 cloudflare）。
+
+**每日額度的影響**
+
+- 最慢生效時間 ≈ 一個批次間隔：UTC 日開始（台灣時間 08:00）時約 18 分鐘，之後依剩餘額度縮短；閒置時第一筆約 10 秒。
+  之後還要加上 TTL 與各家 DNS 快取的時間。
+- 吞吐量不是問題：每批最多 100 個 RRset 變更，80 批 = 每天 8,000 個 RRset 變更。
+- 額度用完（例如有人在 Lazco 面板大量手動修改，Lazco 回 `DNS_DAILY_CHANGE_LIMIT`）時，所有變更暫停到下一個 UTC 日 00:01
+  （台灣時間 08:01），使用者看到「預計 … 前生效」，管理員收到 warning。
+- 對帳的孤兒刪除、管理員停權（purge）都吃同一份額度；停權在下一批才會撤下紀錄。
+
+**切換步驟**（Cloudflare → Lazco DNS）
+
+1. **前提**：cloud-backend 已上線限定 zone 的 API token；信箱已改用 Google Workspace 別名網域（Cloudflare Email Routing 會隨 NS
+   一起失效）；cloud-backend 已確認下方「待確認事項」。
+2. **DNSSEC**：如果 Cloudflare 有開 DNSSEC，先在 `.tw` 註冊商移除 DS，等舊 DS 的 TTL（至少 2 天）過後再往下做
+   （`docs/security/AUDIT-2026-10.md` 第 6 項）。
+3. **先部署這個版本、維持 `DNS_PROVIDER=cloudflare`**，確認一切正常（啟動時會記下 `settings.dns_provider`）。
+4. **找出 Lazco 存不了的紀錄**，請擁有者修改（否則切換後這些紀錄會變成 `VALIDATION_FAILED`）：
+   ```sql
+   select s.name as subdomain, r.name, r.type from dns_records r join subdomains s on s.id = r.subdomain_id
+    where (r.type in ('TXT', 'CAA') and r.data->>'value' ~ '["\\]')
+       or (r.type = 'MX' and r.data->>'exchange' like '%\_%')
+       or (r.type = 'SRV' and r.data->>'target' like '%\_%')
+       or r.name ~ '(^|\.)_lazco-verify(\.|$)';
+   ```
+5. **在 Lazco Cloud 建立 zone `dev-in.tw`**，記下 zone id 與分配的 nameserver。**未委派的 zone 第 21 天會收到提醒、第 28 天被清除**：
+   要在這之前完成第 9 步，或請 Lazco operator 設 `cleanupExempt`。
+6. **建立限定這個 zone 的 API token**，把 `LAZCO_DNS_TOKEN`、`LAZCO_DNS_ZONE_ID` 放進 Infisical「Dev-in.tw」。
+7. **在 Lazco 面板手動建立系統紀錄**（`SYSTEM_RECORD_NAMES`：`@`、`www`、`api`、`_dmarc`、`_psl`、`mail`，以及信箱需要的 MX／SPF／
+   DKIM）。apex 不能是 CNAME：`@` 用 A／AAAA 指向 Traefik 主機，`www`、`api` 用 A／AAAA（或 CNAME 到 `dev-in.tw`）。
+   系統紀錄 Dev-in 永遠不碰，必須人工維護。
+8. **把 api 切到 Lazco DNS**：Dokploy 的 api 環境變數設 `DNS_PROVIDER=lazco`、`LAZCO_DNS_*`、`ZONE_RECORD_LIMIT`（RRset 上限）、
+   `TRUST_CLOUDFLARE=false`，重新部署。
+   - 啟動時會比對 zone 名稱、清掉舊的 `provider_record_id`、匯入 zone 既有名稱。
+   - 30 秒後第一次對帳：所有 synced 的紀錄在 Lazco 上都是 missing → 重新排入 → worker 合成批次寫入（約「RRset 數 ÷ 100」批，
+     第一批不用等間隔）。這一步不會刪任何東西（Lazco 上沒有 Dev-in 擁有的值）。
+   - 等 `/admin/zone` 的佇列清空、沒有 missing，用 `dig @<Lazco nameserver>` 抽查幾個子網域。
+   - 從這一刻起 Cloudflare 不再更新；在第 9 步完成前，使用者的變更只會出現在 Lazco（建議公告一個短暫的凍結期，
+     或接受切換期間的不一致）。
+9. **在註冊商把 NS 改成 Lazco 的 nameserver**。parent 的 NS TTL 期間，resolver 會同時查到兩邊。
+   在 Lazco 面板執行「檢查委派」，確認 `delegated`。
+10. **www／api 改由 web 處理**：在 Dokploy 把 `www.dev-in.tw`、`api.dev-in.tw` 綁到 web（Traefik Let's Encrypt HTTP-01，
+    需要 DNS 已經指到 Traefik）；web 的 proxy 依 Host 轉址（`www` → 301 `https://dev-in.tw<path>`、`api` → 302 `/api/docs`）。
+    HSTS、CSP 等標頭本來就由應用程式送，不依賴 Cloudflare。依 `docs/security/AUDIT-2026-10.md` 第 3 項在 Traefik 加限流與 body 上限。
+11. **法務文件**：合併延後的隱私權政策 v1.2 commit（DNS 由 Lazco DNS 代管、Turnstile 仍由 Cloudflare 提供），所有使用者下次操作時
+    會被要求重新同意。服務條款與使用規範中提到「Cloudflare 代管 DNS」的文字由擁有者另行決定是否改版。
+12. **觀察期**（建議 30 天）後再刪除 Cloudflare zone、撤銷 `CLOUDFLARE_API_TOKEN`；在那之前保留它們以便回滾。
+
+**回滾步驟**（Lazco DNS → Cloudflare）
+
+1. 如果 Lazco 上已經開了 DNSSEC，先在註冊商移除 DS，等 TTL 過後再換 NS。
+2. Dokploy 的 api 改回 `DNS_PROVIDER=cloudflare`（`CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ZONE_ID` 要還在）、`ZONE_RECORD_LIMIT=1000`，
+   重新部署。啟動時會自動清掉 Lazco 的 `provider_record_id`。
+3. 30 秒後的對帳：Lazco 期間新增或修改的紀錄在 Cloudflare 上是 missing／modified → 重新寫入；Lazco 期間刪除的紀錄還留在
+   Cloudflare（有 `dit:` 標記）→ 孤兒。超過煞車門檻（10 筆或 10%）時對帳會中止並告警：確認清單無誤後在 `/admin/zone`
+   以 `force=true` 放行。
+4. 在註冊商把 NS 改回 Cloudflare。
+5. 只有重新開啟 Cloudflare 代理時才把 `TRUST_CLOUDFLARE` 設回 `true`；`www`／`api` 可以繼續由 web 轉址。
+6. 隱私權政策若已發佈 v1.2，回滾要再發一版（不要把版本號改回去，否則同意紀錄會對不上）。
+
+**已知限制**
+
+- 同名同類型的紀錄共用一個 TTL（取最小值），使用者在 UI 設的較大 TTL 不一定生效。
+- 生效時間最長約一個批次間隔（見上）；`syncEta` 是估計值。
+- TXT／CAA 不能有引號或反斜線，MX／SRV 目標不能有底線（Lazco DNS 存不了）。
+- 所有權存在 DB：DB 還原到舊備份時，備份之後寫入的值會變成 unmanaged（不會被刪），其 label 可能被匯入成保留字（安全的方向），
+  需要人工清理。
+- 202 `pending`（PowerDNS 結果不明）視為已送出，靠下一輪對帳確認。
+- 驗證規則抄自 cloud-infra-dns 2026-10-10 的 main；Lazco 改規則時，未預料到的拒絕會以 422 對回個別紀錄，不會卡住整批。
+
+**待 cloud-backend 確認**：限定 zone 的 token 能否呼叫 `GET /v1/dns/zones/{id}`、`GET …/rrsets`、`PATCH …/rrsets`（以及 `GET /v1/dns/limits`）；
+token 呼叫時 KYC、成員角色與 `X-Actor` 怎麼套用（403 會讓 worker 暫停）；token 呼叫的錯誤是否仍是同一個 envelope；全域 API token
+限流是否也套用到 GET 與 PATCH；`dns_write` 每小時 120 次是否以組織計算（與面板共用）；dns-worker 的 canary 是否寫進 dev-in.tw
+（會吃每日額度）。備案：Lazco operator 可以替這個 zone 設 `dailyChangeLimitExempt`（不改程式，但擁有者已決定不改 Lazco，
+只列為備案）。
 
 ### 3.9 DNS 驗證規則（`packages/dns`，前後端共用）
 
