@@ -1,6 +1,6 @@
 {
   "name": "@dit/contract",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "private": true,
   "description": "Dev-in.tw API contract: zod schemas, endpoint map, error codes, typed client and fixtures",
   "license": "AGPL-3.0-only",

@@ -8,7 +8,7 @@
  */
 export const LEGAL_DOCUMENTS = {
   terms: { version: "1.0", effective: "2026-10-14" },
-  privacy: { version: "1.1", effective: "2026-10-14" },
+  privacy: { version: "1.2", effective: "2026-10-14" },
   aup: { version: "1.1", effective: "2026-10-14" },
 } as const;
 
