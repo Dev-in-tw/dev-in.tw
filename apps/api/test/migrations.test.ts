@@ -12,7 +12,7 @@ describe.skipIf(!pgAvailable)("migrations", () => {
   it("are already applied to the template and re-running is a no-op", async () => {
     expect(await runMigrations(database.sql)).toEqual([]);
     const rows = await database.sql`select id from schema_migrations`;
-    expect(rows.map((r) => r.id)).toEqual(["0001_init", "0002_privacy"]);
+    expect(rows.map((r) => r.id)).toEqual(["0001_init", "0002_privacy", "0003_lazco_dns"]);
   });
 
   it("creates every table from PLAN §3.5", async () => {

@@ -69,11 +69,20 @@ const Env = z
         /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/,
         "小寫網域，例如 dev-in.tw",
       ),
-    DNS_PROVIDER: z.enum(["memory", "cloudflare"]).optional(),
+    DNS_PROVIDER: z.enum(["memory", "cloudflare", "lazco"]).optional(),
     CLOUDFLARE_API_TOKEN: optionalString,
     CLOUDFLARE_ZONE_ID: optionalString,
     CLOUDFLARE_API_BASE: z.url().default("https://api.cloudflare.com/client/v4"),
     CLOUDFLARE_RPS: z.coerce.number().positive().max(4).default(3),
+    /** Lazco Cloud 公開 API（`<url>/v1/dns/*`），DNS_PROVIDER=lazco 時使用（PLAN §3.8.1） */
+    LAZCO_DNS_API_URL: z.url().default("https://api.lazco.tw"),
+    /** 限定 dev-in.tw zone 的 Lazco API token（`lz_live_…`） */
+    LAZCO_DNS_TOKEN: optionalString,
+    LAZCO_DNS_ZONE_ID: optionalString,
+    /** Lazco DNS 每個 zone 每個 UTC 日最多 90 批（失敗也算）；Dev-in 自己最多用這麼多，留餘裕給人工操作 */
+    LAZCO_DNS_DAILY_BATCH_BUDGET: int(80, 1, 89),
+    /** 兩批之間的最短間隔：一天中前段額度充足時也不會比這更頻繁 */
+    LAZCO_DNS_MIN_BATCH_INTERVAL_SECONDS: int(60, 10, 3600),
 
     ZONE_RECORD_LIMIT: z.coerce.number().int().min(1),
     ZONE_HEADROOM: int(20),
@@ -121,13 +130,20 @@ const Env = z
     if (prod && env.AUTH_DEV_LOGIN) {
       issue("AUTH_DEV_LOGIN", "NODE_ENV=production 時不可開啟 dev 登入");
     }
-    if (provider === "cloudflare" && env.AUTH_DEV_LOGIN) {
-      issue("DNS_PROVIDER", "DNS_PROVIDER=cloudflare 不可搭配 AUTH_DEV_LOGIN=true");
+    if (provider !== "memory" && env.AUTH_DEV_LOGIN) {
+      issue("DNS_PROVIDER", `DNS_PROVIDER=${provider} 不可搭配 AUTH_DEV_LOGIN=true`);
     }
     if (provider === "cloudflare") {
       if (!env.CLOUDFLARE_API_TOKEN)
         issue("CLOUDFLARE_API_TOKEN", "DNS_PROVIDER=cloudflare 時必填");
       if (!env.CLOUDFLARE_ZONE_ID) issue("CLOUDFLARE_ZONE_ID", "DNS_PROVIDER=cloudflare 時必填");
+    }
+    if (provider === "lazco") {
+      if (!env.LAZCO_DNS_TOKEN) issue("LAZCO_DNS_TOKEN", "DNS_PROVIDER=lazco 時必填");
+      if (!env.LAZCO_DNS_ZONE_ID) issue("LAZCO_DNS_ZONE_ID", "DNS_PROVIDER=lazco 時必填");
+      if (prod && !env.LAZCO_DNS_API_URL.startsWith("https://")) {
+        issue("LAZCO_DNS_API_URL", "production 必須是 https");
+      }
     }
     if (!env.AUTH_DEV_LOGIN || prod) {
       for (const key of [
@@ -177,4 +193,18 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     );
   }
   return parsed.data;
+}
+
+/** 目前 DNS provider 的 zone id（log、告警與啟動檢查用；memory 沒有） */
+export function providerZoneId(config: Config): string | null {
+  if (config.DNS_PROVIDER === "cloudflare") return config.CLOUDFLARE_ZONE_ID ?? null;
+  if (config.DNS_PROVIDER === "lazco") return config.LAZCO_DNS_ZONE_ID ?? null;
+  return null;
+}
+
+/** SYSTEM_RECORD_NAMES 的 FQDN（@ 是 zone apex）：worker 與 reconciler 永遠不碰 */
+export function systemFqdns(config: Pick<Config, "ROOT_DOMAIN" | "SYSTEM_RECORD_NAMES">): string[] {
+  return config.SYSTEM_RECORD_NAMES.map((n) =>
+    n === "@" ? config.ROOT_DOMAIN : `${n}.${config.ROOT_DOMAIN}`,
+  );
 }

@@ -56,6 +56,42 @@ describe("config", () => {
     expect(() => loadConfig(prod({ APP_ORIGIN: "http://dev-in.tw" }))).toThrow(/https/);
   });
 
+  it("validates the Lazco DNS settings and refuses to start without them in production", () => {
+    const lazco = (o: Record<string, string> = {}) =>
+      prod({
+        DNS_PROVIDER: "lazco",
+        LAZCO_DNS_TOKEN: "lz_live_token",
+        LAZCO_DNS_ZONE_ID: "zone-devin",
+        ...o,
+      });
+    const config = loadConfig(lazco());
+    expect(config).toMatchObject({
+      DNS_PROVIDER: "lazco",
+      LAZCO_DNS_API_URL: "https://api.lazco.tw",
+      LAZCO_DNS_DAILY_BATCH_BUDGET: 80,
+      LAZCO_DNS_MIN_BATCH_INTERVAL_SECONDS: 60,
+    });
+    expect(() => loadConfig(lazco({ LAZCO_DNS_TOKEN: "" }))).toThrow(/LAZCO_DNS_TOKEN/);
+    expect(() => loadConfig(lazco({ LAZCO_DNS_ZONE_ID: "" }))).toThrow(/LAZCO_DNS_ZONE_ID/);
+    expect(() => loadConfig(lazco({ LAZCO_DNS_API_URL: "http://api.lazco.tw" }))).toThrow(
+      /LAZCO_DNS_API_URL/,
+    );
+    // Lazco DNS 每天 90 批：Dev-in 一定要留餘裕
+    expect(() => loadConfig(lazco({ LAZCO_DNS_DAILY_BATCH_BUDGET: "90" }))).toThrow(
+      /LAZCO_DNS_DAILY_BATCH_BUDGET/,
+    );
+    expect(() =>
+      loadConfig(base({ DNS_PROVIDER: "lazco", LAZCO_DNS_TOKEN: "t", LAZCO_DNS_ZONE_ID: "z" })),
+    ).toThrow(/DNS_PROVIDER=lazco 不可搭配 AUTH_DEV_LOGIN/);
+    // Cloudflare 的變數在 lazco 時不必填
+    expect(loadConfig(lazco({ CLOUDFLARE_API_TOKEN: "" })).DNS_PROVIDER).toBe("lazco");
+  });
+
+  it("does not trust CF-Connecting-IP unless TRUST_CLOUDFLARE is set", () => {
+    expect(loadConfig(base()).TRUST_CLOUDFLARE).toBe(false);
+    expect(loadConfig(prod()).TRUST_CLOUDFLARE).toBe(false);
+  });
+
   it("lists every missing variable with a clear error", () => {
     const error = (() => {
       try {
