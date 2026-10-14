@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { type Actor, type Deps, SYSTEM_ACTOR } from "../context.ts";
 import { dnsRecords, reservedNames, subdomains } from "../db/schema.ts";
+import { HOUR } from "../lib/clock.ts";
 import { writeAudit } from "../modules/audit/service.ts";
 import {
   type DriftItem,
@@ -10,6 +11,12 @@ import {
 } from "../modules/settings.ts";
 import { wakeWorker } from "./events-bus.ts";
 import { fqdnOf, sameRecord, toProviderInput } from "./mapper.ts";
+import {
+  forgetOwnership,
+  listProviderRecords,
+  ownershipZone,
+  pruneStaleOwnership,
+} from "./ownership.ts";
 import { type ProviderRecord, parseOwnership } from "./provider-port.ts";
 import { enqueue } from "./queue.ts";
 
@@ -27,25 +34,45 @@ function systemFqdns(deps: Pick<Deps, "config">): Set<string> {
   return new Set(deps.config.SYSTEM_RECORD_NAMES.map((n) => (n === "@" ? root : `${n}.${root}`)));
 }
 
+/**
+ * 用量：Cloudflare 以紀錄計算；以 RRset 寫入的 provider（Lazco DNS）以 RRset（同名同類型）計算，
+ * 沒有任何受管值的 RRset 算 unmanaged（系統紀錄、管理員手動建立的）。
+ */
+export function zoneCounts(
+  deps: Pick<Deps, "provider">,
+  list: readonly ProviderRecord[],
+): { used: number; unmanaged: number } {
+  if (!deps.provider.rrsets) {
+    return { used: list.length, unmanaged: list.filter((r) => !parseOwnership(r.comment)).length };
+  }
+  const managed = new Map<string, boolean>();
+  for (const r of list) {
+    const key = `${r.fqdn}|${r.type}`;
+    managed.set(key, (managed.get(key) ?? false) || parseOwnership(r.comment) !== null);
+  }
+  return { used: managed.size, unmanaged: [...managed.values()].filter((m) => !m).length };
+}
+
 /** 掃一次 provider，更新 zone 快照（容量閘門與 /status 用）。啟動時與每輪對帳都會呼叫。 */
 export async function refreshZoneSnapshot(deps: Deps, records?: ProviderRecord[]) {
   const list = records ?? (await collect(deps));
   const info = await deps.provider.zoneInfo();
-  const unmanagedCount = list.filter((r) => !parseOwnership(r.comment)).length;
+  const { used, unmanaged } = zoneCounts(deps, list);
   const snapshot = {
-    recordCount: list.length,
-    unmanagedCount,
+    recordCount: used,
+    unmanagedCount: unmanaged,
     plan: info.plan,
     at: deps.clock.now().toISOString(),
   };
   await setSetting(deps.db, "zone_snapshot", snapshot);
-  const ratio = list.length / deps.config.ZONE_RECORD_LIMIT;
+  const unit = deps.provider.rrsets ? "個 RRset" : "筆紀錄";
+  const ratio = used / deps.config.ZONE_RECORD_LIMIT;
   if (ratio >= 0.95 || ratio >= 0.8) {
     const level = ratio >= 0.95 ? 95 : 80;
     deps.notifier.notify({
       key: `zone-usage-${level}`,
       title: `Zone 使用量已達 ${level}%`,
-      description: `${list.length} / ${deps.config.ZONE_RECORD_LIMIT} 筆紀錄`,
+      description: `${used} / ${deps.config.ZONE_RECORD_LIMIT} ${unit}`,
       severity: level >= 95 ? "critical" : "warning",
       url: `${deps.config.APP_ORIGIN}/admin/zone`,
     });
@@ -53,10 +80,9 @@ export async function refreshZoneSnapshot(deps: Deps, records?: ProviderRecord[]
   return snapshot;
 }
 
-async function collect(deps: Pick<Deps, "provider">): Promise<ProviderRecord[]> {
-  const out: ProviderRecord[] = [];
-  for await (const r of deps.provider.listAll()) out.push(r);
-  return out;
+/** provider 沒有 comment 時（Lazco DNS），依 DB 補上所有權標記（sync/ownership.ts） */
+async function collect(deps: Pick<Deps, "provider" | "db" | "config">): Promise<ProviderRecord[]> {
+  return listProviderRecords(deps);
 }
 
 /**
@@ -174,6 +200,31 @@ async function runReconcile(deps: Deps, opts: ReconcileOptions): Promise<Reconci
     if (owner) byComment.set(owner, r);
   }
 
+  // RRset 模式：同一個 RRset 共用 TTL（取組內最小值），只在組內全部 synced 時才比較 TTL，
+  // 否則還沒送出的變更會被誤判成漂移
+  const writer = deps.provider.rrsets;
+  const rrsetTtl = new Map<string, number | null>();
+  if (writer) {
+    for (const { record, sub } of rows) {
+      if (sub.status !== "active" || record.syncStatus === "deleting") continue;
+      const key = `${fqdnOf(record.name, sub.name, root)}|${record.type}`;
+      const ttl = writer.normalizeTtl(record.ttl);
+      const prev = rrsetTtl.get(key);
+      if (record.syncStatus !== "synced" || prev === null) rrsetTtl.set(key, null);
+      else rrsetTtl.set(key, prev === undefined ? ttl : Math.min(prev, ttl));
+    }
+  }
+  const expectedOf = (
+    record: (typeof rows)[number]["record"],
+    subName: string,
+    actual: ProviderRecord,
+  ) => {
+    const desired = toProviderInput(record, subName, root);
+    if (!writer) return desired;
+    const ttl = rrsetTtl.get(`${desired.fqdn}|${record.type}`);
+    return { ...desired, ttl: ttl ?? actual.ttl };
+  };
+
   const drift: DriftItem[] = [];
   const toResync: {
     recordId: string;
@@ -197,7 +248,7 @@ async function runReconcile(deps: Deps, opts: ReconcileOptions): Promise<Reconci
         fqdn,
         type: record.type,
       });
-    } else if (!sameRecord(toProviderInput(record, sub.name, root), actual)) {
+    } else if (!sameRecord(expectedOf(record, sub.name, actual), actual)) {
       drift.push({
         kind: "modified",
         fqdn,
@@ -275,7 +326,18 @@ async function runReconcile(deps: Deps, opts: ReconcileOptions): Promise<Reconci
   for (let i = 0; i < orphans.length; i += 100) {
     const chunk = orphans.slice(i, i + 100).map((r) => r.id);
     await deps.provider.batch({ deletes: chunk, replaces: [], creates: [] });
+    if (!deps.provider.supportsComments) await forgetOwnership(deps.db, ownershipZone(deps), chunk);
     orphansDeleted += chunk.length;
+  }
+  if (!deps.provider.supportsComments) {
+    // provider 上已經沒有的值、超過一小時沒更新的所有權列（失敗的寫入留下的 intent）
+    const present = new Set(providerRecords.map((r) => r.id));
+    await pruneStaleOwnership(
+      deps.db,
+      ownershipZone(deps),
+      present,
+      new Date(clock.now().getTime() - HOUR),
+    );
   }
 
   await deps.db.transaction(async (tx) => {
