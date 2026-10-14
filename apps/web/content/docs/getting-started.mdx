@@ -27,6 +27,6 @@ Dev-in.tw 讓你免費拿到一個 `你的名字.dev-in.tw`，然後在網頁上
 www    300  IN  CNAME  you.github.io.
 ```
 
-新增後紀錄會先顯示 `[ PENDING ]`，通常一秒內變成 `[ SYNCED ✓ ]`。接著到「傳播檢查」看看 Cloudflare、Google、Quad9 與 TWNIC Quad101 是不是都看到了。
+新增後紀錄會先顯示 `[ PENDING ]` 與預計生效的時間，通常幾秒到十幾分鐘內變成 `[ SYNCED ✓ ]`（變更會合併成批次寫入 DNS）。接著到「傳播檢查」看看 Cloudflare、Google、Quad9 與 TWNIC Quad101 是不是都看到了。
 
 > 小技巧：在任何頁面按 `⌘K`（Windows 是 `Ctrl+K`）打開指令面板，輸入 `add cname www you.github.io` 就能直接新增紀錄。
