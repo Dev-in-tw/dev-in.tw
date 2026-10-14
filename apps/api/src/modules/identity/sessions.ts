@@ -91,6 +91,32 @@ export function effectiveRole(
   return "user";
 }
 
+/**
+ * 長連線（SSE）定期確認 session 仍然有效：被登出、撤銷、過期、帳號停權或申請刪除時回 false。
+ * 不延長 idle 期限（那是一般請求的工作）。
+ */
+export async function isSessionActive(
+  ex: Executor,
+  sessionId: string,
+  now: Date,
+): Promise<boolean> {
+  const [row] = await ex
+    .select({ session: sessions, user: users })
+    .from(sessions)
+    .innerJoin(users, eq(users.id, sessions.userId))
+    .where(eq(sessions.id, sessionId))
+    .limit(1);
+  if (!row) return false;
+  const { session, user } = row;
+  return (
+    !session.revokedAt &&
+    session.idleExpiresAt > now &&
+    session.absoluteExpiresAt > now &&
+    user.status === "active" &&
+    !user.deletionRequestedAt
+  );
+}
+
 export async function revokeSessionById(ex: Executor, sessionId: string, now: Date) {
   await ex
     .update(sessions)

@@ -39,7 +39,10 @@ export const RULES = {
 } as const satisfies Record<string, RateRule>;
 
 export const RECORD_WRITE_RULES = [RULES.recordWriteMinute, RULES.recordWriteHour] as const;
+/** SSE（GET /events）：每個使用者、每個來源 IP（IPv6 以 /64 計）與整個 process 的同時連線上限 */
 export const EVENTS_MAX_CONNECTIONS = 5;
+export const EVENTS_MAX_PER_IP = 20;
+export const EVENTS_MAX_TOTAL = 1000;
 /** bucket 數量的硬上限：超過時先清掉已補滿的，再淘汰最久沒用到的 */
 export const MAX_BUCKETS = 100_000;
 

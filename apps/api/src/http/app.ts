@@ -20,7 +20,7 @@ import { RateLimiter } from "./middleware/rate-limit.ts";
 import { buildOpenApi } from "./openapi.ts";
 import { adminRoutes } from "./routes/admin.ts";
 import { authRoutes } from "./routes/auth.ts";
-import { eventRoutes } from "./routes/events.ts";
+import { eventRoutes, type StreamLimits } from "./routes/events.ts";
 import { meRoutes } from "./routes/me.ts";
 import { publicRoutes } from "./routes/public.ts";
 import { subdomainRoutes } from "./routes/subdomains.ts";
@@ -30,6 +30,8 @@ export interface AppOptions {
   /** 非 production 預設開啟：回應不符合合約時直接 500 */
   validateResponses?: boolean;
   ssePingMs?: number;
+  sseRevalidateMs?: number;
+  sseLimits?: Partial<StreamLimits>;
 }
 
 async function pingDb(deps: Deps): Promise<boolean> {
@@ -176,9 +178,13 @@ export function createApp(deps: Deps, options: AppOptions = {}) {
   meRoutes(reg);
   subdomainRoutes(reg);
   adminRoutes(reg);
-  eventRoutes(reg, options.ssePingMs !== undefined ? { pingMs: options.ssePingMs } : {});
+  const streams = eventRoutes(reg, {
+    ...(options.ssePingMs !== undefined ? { pingMs: options.ssePingMs } : {}),
+    ...(options.sseRevalidateMs !== undefined ? { revalidateMs: options.sseRevalidateMs } : {}),
+    ...(options.sseLimits !== undefined ? { limits: options.sseLimits } : {}),
+  });
 
-  return Object.assign(app, { registered: reg.registered, limiter: reg.limiter });
+  return Object.assign(app, { registered: reg.registered, limiter: reg.limiter, streams });
 }
 
 export type App = ReturnType<typeof createApp>;

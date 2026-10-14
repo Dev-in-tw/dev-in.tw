@@ -7,7 +7,7 @@ import { createDeps } from "../../src/bootstrap.ts";
 import { type Config, loadConfig } from "../../src/config.ts";
 import type { Deps } from "../../src/context.ts";
 import { seedReservedNames } from "../../src/db/seed.ts";
-import { createApp } from "../../src/http/app.ts";
+import { type AppOptions, createApp } from "../../src/http/app.ts";
 import { RateLimiter } from "../../src/http/middleware/rate-limit.ts";
 import { ManualClock } from "../../src/lib/clock.ts";
 import { createLogger, silentLogger } from "../../src/lib/logger.ts";
@@ -79,7 +79,7 @@ export interface TestContext {
 }
 
 export async function setupTestApp(
-  opts: { env?: Record<string, string>; seed?: boolean } = {},
+  opts: { env?: Record<string, string>; seed?: boolean; app?: AppOptions } = {},
 ): Promise<TestContext> {
   const database = await createTestDatabase();
   const config = loadConfig(testEnv(database.url, opts.env));
@@ -107,7 +107,12 @@ export async function setupTestApp(
   if (opts.seed !== false) await seedReservedNames(deps.db);
   await deps.bus.start(deps.sql);
   const limiter = new RateLimiter(() => clock.now().getTime());
-  const app = createApp(deps, { limiter, validateResponses: true, ssePingMs: 1000 });
+  const app = createApp(deps, {
+    limiter,
+    validateResponses: true,
+    ssePingMs: 1000,
+    ...opts.app,
+  });
   const worker = new SyncWorker(deps);
   return {
     config,
