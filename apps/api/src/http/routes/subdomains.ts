@@ -104,8 +104,12 @@ export function subdomainRoutes(reg: Registry): void {
     { rateLimits: [RULES.presetApply], normalizeBody: prenormalizePresetBody },
   );
 
-  define(reg, "createTransfer", ({ c, user, params, body, actor }) =>
-    createTransfer(c.get("deps"), user, params.name, body, actor),
+  define(
+    reg,
+    "createTransfer",
+    ({ c, user, params, body, actor }) =>
+      createTransfer(c.get("deps"), user, params.name, body, actor),
+    { rateLimits: [RULES.transfer] },
   );
   define(reg, "listTransfers", ({ c, user }) => listTransfers(c.get("deps"), user));
   define(reg, "acceptTransfer", ({ c, user, params, actor }) =>

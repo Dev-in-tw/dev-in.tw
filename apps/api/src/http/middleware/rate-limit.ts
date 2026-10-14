@@ -36,6 +36,8 @@ export const RULES = {
   presetApply: { scope: "preset-apply", capacity: 20, refill: 20, perMs: HOUR_MS, by: "user" },
   propagation: { scope: "propagation", capacity: 12, refill: 12, perMs: MINUTE_MS, by: "user" },
   report: { scope: "report", capacity: 5, refill: 5, perMs: HOUR_MS, by: "ip" },
+  /** 轉移邀請會通知對方，也能用來試探某個 GitHub 帳號有沒有用過本站 */
+  transfer: { scope: "transfer", capacity: 10, refill: 10, perMs: HOUR_MS, by: "user" },
 } as const satisfies Record<string, RateRule>;
 
 export const RECORD_WRITE_RULES = [RULES.recordWriteMinute, RULES.recordWriteHour] as const;

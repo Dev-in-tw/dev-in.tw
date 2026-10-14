@@ -55,6 +55,9 @@ export async function decideName(
   const syntax = checkLabelSyntax(name);
   if (!syntax.ok) return out("invalid", syntax.violations[0]?.message ?? "名稱格式不正確");
 
+  // SYSTEM_RECORD_NAMES 是 apex 上的系統紀錄（www、api、mail…）：就算有人從保留字表刪掉也不能開放
+  if (config.SYSTEM_RECORD_NAMES.includes(name)) return out("reserved", RESERVED_REASON.system);
+
   const [reserved] = await ex
     .select({ category: reservedNames.category })
     .from(reservedNames)
@@ -146,8 +149,8 @@ async function suggest(
       .where(and(inArray(nameHolds.name, candidates), gt(nameHolds.holdUntil, now))),
   ]);
   const blocked = new Set([...reserved, ...taken, ...held].map((r) => r.n.toLowerCase()));
+  for (const name of config.SYSTEM_RECORD_NAMES) blocked.add(name);
   const brands = await loadBrands(ex);
-  void config;
   return candidates
     .filter((c) => !blocked.has(c) && confusableWith(c, brands) === null)
     .slice(0, 5);
