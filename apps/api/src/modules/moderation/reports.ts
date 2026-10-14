@@ -47,9 +47,10 @@ export async function createReport(
       })
       .returning();
     if (!created) throw new Error("insert returned no row");
+    // 檢舉人的 IP 只以加鹽雜湊保存（隱私權政策第 2 條），稽核紀錄不另外留原始 IP
     await writeAudit(
       tx,
-      { ...actor, type: reporter.userId ? "user" : "system" },
+      { ...actor, ip: null, type: reporter.userId ? "user" : "system" },
       {
         action: "report.create",
         targetType: "report",
@@ -107,6 +108,7 @@ async function toAdminReports(ex: Executor, rows: ReportRow[]): Promise<AdminRep
       resolutionNote: r.resolutionNote,
       createdAt: iso(r.createdAt),
       resolvedAt: isoOrNull(r.resolvedAt),
+      redactedAt: isoOrNull(r.redactedAt),
     };
   });
 }
