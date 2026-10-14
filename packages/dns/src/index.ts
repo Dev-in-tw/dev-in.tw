@@ -31,6 +31,11 @@ export {
   planPreset,
   prefixedName,
 } from "./presets.ts";
+export {
+  type DnsProviderKind,
+  LAZCO_RESERVED_LABEL,
+  providerViolations,
+} from "./provider-rules.ts";
 export { describeRecord, isSameRecord, recordContent, recordDataEquals } from "./record-data.ts";
 export {
   CAA_TAGS,
