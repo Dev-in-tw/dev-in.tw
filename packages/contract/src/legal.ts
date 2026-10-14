@@ -9,7 +9,7 @@
 export const LEGAL_DOCUMENTS = {
   terms: { version: "1.0", effective: "2026-10-14" },
   privacy: { version: "1.1", effective: "2026-10-14" },
-  aup: { version: "1.0", effective: "2026-10-14" },
+  aup: { version: "1.1", effective: "2026-10-14" },
 } as const;
 
 export type LegalDocumentId = keyof typeof LEGAL_DOCUMENTS;

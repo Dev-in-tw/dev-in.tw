@@ -7,7 +7,7 @@ Dev-in.tw 由 Lazco Labs（拉資科科技有限公司，Lazco Corporation）組
 
 ## 通報方式
 
-- **Email：[security@dev-in.tw](mailto:security@dev-in.tw)**（會轉寄給 Lazco 維運小組 contact@lazco.tw）。
+- **Email：[security@dev-in.tw](mailto:security@dev-in.tw)**（會轉寄給 Lazco 維運小組）。
 - 也可以在 GitHub 使用 [Private vulnerability reporting](https://github.com/Dev-in-tw/dev-in.tw/security/advisories/new)。
 - **請不要**在公開 issue、PR、Discord 或社群貼文中揭露尚未修補的漏洞。
 
@@ -53,13 +53,18 @@ GitHub Security Advisory 中致謝。Dev-in.tw 是免費服務，**目前沒有�
 
 ## 測試守則（Safe harbor）
 
-以善意進行、並遵守下列守則的研究，我們不會追究法律責任，也會在必要時向第三方說明你的行為屬於授權測試：
+研究時請遵守下列守則：
 
 - 只使用**你自己的**帳號與子網域；需要第二個帳號時請自己再開一個，不要存取他人的資料。
 - 不要申請品牌、政府、金融機構相似的名稱，也不要架設任何釣魚或惡意內容；測試用的子網域用完請釋出。
-- 不要進行會影響服務可用性的測試（大量請求、塞爆 zone 配額、刻意觸發大量 DNS 變更）。
-- 一旦接觸到他人的資料，請立即停止、不要保存或散布，並在通報中說明。
-- 給我們合理的時間修補後再公開。
+- 不要進行會影響服務可用性的測試（大量請求、大量自動化掃描、塞爆 zone 配額、刻意觸發大量 DNS 變更），也不要進行社交工程。
+- 證明漏洞存在後就停止；一旦接觸到他人的資料，請立即停止、不要保存或散布，並在通報中說明。
+- 依上方「回應時程」的公開時間協調公開，在那之前不要公開漏洞細節。
+
+對於善意、遵守本守則並及時通報的研究，Lazco Labs（拉資科科技有限公司）不會就該研究行為**提出刑事告訴或民事求償**，並會在必要時向第三方說明你的行為屬於本政策授權的測試。
+
+本承諾**不適用於**：違反上述守則、存取或保存他人資料超出證明漏洞所必要的範圍、以漏洞要求報酬或威脅公開，或任何其他違法行為。
+本承諾也**無法代表**其他使用者或第三方服務（例如 Cloudflare、GitHub）放棄其權利。
 
 ## 支援版本
 
@@ -77,5 +82,7 @@ GitHub Security Advisory 中致謝。Dev-in.tw 是免費服務，**目前沒有�
 - In scope: the dev-in.tw website and API, this repository, and DNS management logic that affects
   other users. Out of scope: content on user-operated subdomains, third-party platforms, volumetric
   DoS, social engineering, and best-practice reports without demonstrated impact.
-- Good-faith research that uses only your own accounts and subdomains, avoids service disruption and
-  stops on contact with other people's data is welcome and will not be pursued legally.
+- For good-faith research that follows the rules above and is reported promptly, Lazco Labs will not file a
+  criminal complaint or civil claim over that research. This does not cover rule violations, retaining other
+  people's data beyond what is needed to show the issue, extortion, or other unlawful acts, and it cannot waive
+  the rights of other users or third-party services.
