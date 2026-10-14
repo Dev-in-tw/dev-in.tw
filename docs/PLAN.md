@@ -2257,6 +2257,10 @@ export function toZoneLine(r: DnsRecord): string;    // "www  300  IN  CNAME  al
 
 ### 7.1 後續決定（2026-10-14）
 
-- **平台信箱轉寄目的地：`contact@lazco.tw`**。`abuse@dev-in.tw`、`security@dev-in.tw`、`hello@dev-in.tw` 三個都轉寄到這一個信箱（不是個人信箱）。
-- **DNS 代管**：dev-in.tw 將從 Cloudflare 整個搬到 **Lazco DNS**（擁有者考量 Cloudflare 的用量限制）。搬遷前需評估 Lazco DNS 的 API 與限制，並替代原本依賴 Cloudflare 的功能（代理、轉址規則、Email Routing）。搬遷期間安全設計不可綁定 Cloudflare。
+- **平台信箱（已更新，取代原本的 contact@lazco.tw）**：依 Lazco 規範（`product-domain.md`：刻意不使用 contact@lazco.tw）分流，以 Cloudflare Email Routing 轉寄：
+  - `abuse@dev-in.tw` → `abuse@lazco.tw`
+  - `security@dev-in.tw` → `security@lazco.tw`
+  - `hello@dev-in.tw` → `support@lazco.tw`
+  - 其他收件人一律丟棄（catch-all drop）；`_dmarc` 為 `p=reject; sp=none`（主網域不寄信，子網域屬於使用者）。
+- **DNS 代管**：dev-in.tw **暫時留在 Cloudflare**（Free，上限 1,000 筆）。原本計畫搬到 Lazco DNS，但目前卡在：Lazco Cloud 的 `/v1/dns/*` 只接受 session、不接受 API token（403 `SESSION_REQUIRED`）；dns-api 只開放 k8s 叢集內部；每個 zone 每天 90 批變更（Dev-in 需聚合批次，延遲約 16 分鐘）；不支援 ALIAS；Cloudflare Email Routing 必須留在 Cloudflare。搬遷列為後續專案，前提是 cloud-backend 支援有 zone 範圍的 API token，且信箱改用 Google Workspace 別名網域。安全設計仍不可綁定 Cloudflare。
 - 法務文件（條款、隱私權政策、使用規範）定稿，營運主體 Lazco Labs（拉資科科技有限公司，Lazco Corporation）。
