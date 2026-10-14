@@ -21,6 +21,7 @@ import {
   ttlLabel,
 } from "@/lib/records.ts";
 import { useSync } from "@/lib/sse.tsx";
+import { syncEtaLabel } from "@/lib/time.ts";
 import { RecordFields } from "./record-fields.tsx";
 
 export function RecordRow({
@@ -189,6 +190,11 @@ export function RecordRow({
         ) : (
           <SyncBadge status={deleting ? "deleting" : record.syncStatus} key={record.syncStatus} />
         )}
+        {record.syncEta && (record.syncStatus === "pending" || record.syncStatus === "deleting") ? (
+          <span className="zone mt-0.5 block text-xs text-ink-muted" data-testid="sync-eta">
+            {syncEtaLabel(record.syncEta)}
+          </span>
+        ) : null}
       </span>
       <span
         role="cell"

@@ -16,6 +16,24 @@ const dateOnly = new Intl.DateTimeFormat("zh-TW", {
   day: "2-digit",
 });
 
+const timeOnly = new Intl.DateTimeFormat("zh-TW", {
+  timeZone: TZ,
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+const dayKey = new Intl.DateTimeFormat("en-CA", { timeZone: TZ });
+
+/**
+ * 批次寫入 DNS 時（Lazco DNS）pending 紀錄的預計生效時間：「預計 14:32 前生效」，不是今天就加上日期。
+ * 只是估計：實際時間還受 TTL 與各家 DNS 快取影響。
+ */
+export function syncEtaLabel(iso: string, now = Date.now()): string {
+  const at = new Date(iso);
+  const sameDay = dayKey.format(at) === dayKey.format(new Date(now));
+  return `預計 ${sameDay ? timeOnly.format(at) : formatDateTime(iso)} 前生效`;
+}
+
 /** 一律以台北時間顯示（zone file 風格：2026/10/14 16:00） */
 export function formatDateTime(iso: string): string {
   return dateTime.format(new Date(iso));

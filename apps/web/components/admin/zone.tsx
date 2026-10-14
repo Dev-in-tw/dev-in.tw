@@ -134,7 +134,7 @@ export function AdminZone() {
         </h2>
         <div className="mt-3">
           {z.drift.length === 0 ? (
-            <p className="text-sm text-ink-muted">沒有漂移，DB 與 Cloudflare 一致。</p>
+            <p className="text-sm text-ink-muted">沒有漂移，DB 與 DNS 供應商一致。</p>
           ) : (
             <DataTable label="漂移報告" head={["種類", "FQDN", "類型", "說明"]}>
               {z.drift.map((d) => (

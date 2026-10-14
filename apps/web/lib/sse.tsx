@@ -65,7 +65,14 @@ export function applyServerEvent(client: QueryClient, event: ServerEvent): strin
             if (r.id !== event.recordId || r.version > event.version) return r;
             if (event.syncStatus === "synced") message = `${recordLabel(r)} 已同步`;
             if (event.syncStatus === "error") message = `${recordLabel(r)} 同步失敗`;
-            return { ...r, syncStatus: event.syncStatus, syncError: event.syncError };
+            // 批次寫入時 pending 帶預計生效時間；同步完成或失敗後就不再顯示
+            const waiting = event.syncStatus === "pending" || event.syncStatus === "deleting";
+            return {
+              ...r,
+              syncStatus: event.syncStatus,
+              syncError: event.syncError,
+              syncEta: waiting ? (event.syncEta ?? r.syncEta) : undefined,
+            };
           }),
         };
       });
