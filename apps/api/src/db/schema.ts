@@ -193,6 +193,19 @@ export const reports = pgTable("reports", {
   resolutionNote: text("resolution_note"),
   createdAt: tz("created_at").notNull().defaultNow(),
   resolvedAt: tz("resolved_at"),
+  redactedAt: tz("redacted_at"),
+});
+
+export const legalConsents = pgTable("legal_consents", {
+  id: uuid("id").primaryKey(),
+  seq: bigint("seq", { mode: "number" }).generatedAlwaysAsIdentity(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  termsVersion: text("terms_version").notNull(),
+  privacyVersion: text("privacy_version").notNull(),
+  context: text("context").$type<"login" | "subdomain_create" | "prompt">().notNull(),
+  acceptedAt: tz("accepted_at").notNull().defaultNow(),
 });
 
 export const auditLogs = pgTable("audit_logs", {
@@ -238,3 +251,4 @@ export type JobRow = typeof dnsSyncJobs.$inferSelect;
 export type TransferRow = typeof transfers.$inferSelect;
 export type ReportRow = typeof reports.$inferSelect;
 export type AuditRow = typeof auditLogs.$inferSelect;
+export type ConsentRow = typeof legalConsents.$inferSelect;
