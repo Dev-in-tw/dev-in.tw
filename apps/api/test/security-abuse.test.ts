@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { reconcile } from "../src/sync/reconciler.ts";
 import { claim, login, request, setupTestApp, type TestContext } from "./helpers/app.ts";
 import { pgAvailable } from "./helpers/db.ts";
 
@@ -60,6 +61,32 @@ describe.skipIf(!pgAvailable)("abuse controls", () => {
       });
       expect(puny.status).toBe(400);
       expect(await puny.json()).toMatchObject({ code: "VALIDATION_FAILED" });
+    });
+  });
+});
+
+describe.skipIf(!pgAvailable)("zone names added after startup", () => {
+  let t: TestContext;
+  beforeAll(async () => {
+    t = await setupTestApp();
+  });
+  afterAll(() => t.close());
+
+  it("become reserved at the next reconcile instead of waiting for a restart", async () => {
+    expect(await (await request(t, "GET", "/api/v1/availability/ops-board")).json()).toMatchObject({
+      status: "available",
+    });
+    // 管理員在 Cloudflare 手動新增的紀錄（沒有 dit: 標記）
+    t.provider.seed({
+      fqdn: "ops-board.dev-in.tw",
+      type: "CNAME",
+      ttl: 1,
+      content: "status.example.net",
+      comment: null,
+    });
+    await reconcile(t.deps);
+    expect(await (await request(t, "GET", "/api/v1/availability/ops-board")).json()).toMatchObject({
+      status: "reserved",
     });
   });
 });
