@@ -11,6 +11,7 @@ import type { z } from "zod";
 import type { Actor } from "../context.ts";
 import { idempotencyKeys, type SessionRow, type UserRow } from "../db/schema.ts";
 import { sha256Hex } from "../lib/crypto.ts";
+import { rateKeyForIp } from "../lib/net.ts";
 import { AppError } from "../lib/problem.ts";
 import { type AppContext, type AppEnv, actorOf } from "./env.ts";
 import type { RateLimiter, RateRule } from "./middleware/rate-limit.ts";
@@ -150,9 +151,7 @@ export function define<N extends EndpointName>(
 
     for (const rule of options.rateLimits ?? []) {
       const key =
-        rule.by === "user"
-          ? (resolved?.user.id ?? c.get("clientIp") ?? "anon")
-          : (c.get("clientIp") ?? "unknown");
+        rule.by === "user" && resolved ? resolved.user.id : rateKeyForIp(c.get("clientIp"));
       const result = reg.limiter.take(rule, key);
       if (!result.ok) {
         c.get("log").rate_limited = true;

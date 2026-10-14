@@ -1,6 +1,6 @@
 import type { MiddlewareHandler } from "hono";
 import { randomToken } from "../../lib/crypto.ts";
-import { hashIp, resolveClientIp, resolveViaCloudflare } from "../../lib/net.ts";
+import { hashIp, rateKeyForIp, resolveClientIp, resolveViaCloudflare } from "../../lib/net.ts";
 import { AppError } from "../../lib/problem.ts";
 import { resolveSession, SESSION_COOKIE } from "../../modules/identity/sessions.ts";
 import type { AppEnv } from "../env.ts";
@@ -130,8 +130,7 @@ export const csrf =
 export const globalRateLimit =
   (limiter: RateLimiter): MiddlewareHandler<AppEnv> =>
   async (c, next) => {
-    const ip = c.get("clientIp") ?? "unknown";
-    const result = limiter.take(RULES.global, ip);
+    const result = limiter.take(RULES.global, rateKeyForIp(c.get("clientIp")));
     if (!result.ok) {
       c.get("log").rate_limited = true;
       throw new AppError("RATE_LIMITED", undefined, {
