@@ -21,6 +21,7 @@ const TITLES: Record<ErrorCode, string> = {
   REGISTRATION_CLOSED: "Registration closed",
   TURNSTILE_FAILED: "Turnstile verification failed",
   CONFIRMATION_MISMATCH: "Confirmation does not match",
+  CONSENT_REQUIRED: "Consent to the current terms is required",
   NAME_INVALID: "Name is invalid",
   NAME_RESERVED: "Name is reserved",
   NAME_TAKEN: "Name is taken",

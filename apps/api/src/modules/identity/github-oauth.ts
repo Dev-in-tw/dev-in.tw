@@ -1,4 +1,6 @@
+import { eq } from "drizzle-orm";
 import type { Actor, Deps } from "../../context.ts";
+import { users } from "../../db/schema.ts";
 import { addMs, MINUTE } from "../../lib/clock.ts";
 import {
   randomToken,
@@ -9,6 +11,7 @@ import {
   verifyPayload,
 } from "../../lib/crypto.ts";
 import { writeAudit } from "../audit/service.ts";
+import { matchesCurrent, recordConsent } from "./consent.ts";
 import { createSession, revokeSessionById } from "./sessions.ts";
 import { upsertGithubUser } from "./users.ts";
 
@@ -36,11 +39,14 @@ interface OAuthState {
   verifier: string;
   redirect: string;
   exp: number;
+  /** 登入頁顯示、使用者按下登入時同意的版本（首次登入時記錄為同意紀錄） */
+  consent?: { termsVersion: string; privacyVersion: string } | undefined;
 }
 
 export function startGithubLogin(
   deps: Pick<Deps, "config" | "clock">,
   redirect: string | undefined,
+  consent: { termsVersion?: string | undefined; privacyVersion?: string | undefined } = {},
 ) {
   const { config } = deps;
   const payload: OAuthState = {
@@ -48,6 +54,11 @@ export function startGithubLogin(
     verifier: randomToken(32),
     redirect: sanitizeRedirect(redirect),
     exp: addMs(deps.clock.now(), OAUTH_TTL_MS).getTime(),
+    ...(matchesCurrent(consent)
+      ? {
+          consent: { termsVersion: consent.termsVersion, privacyVersion: consent.privacyVersion },
+        }
+      : {}),
   };
   const url = new URL("https://github.com/login/oauth/authorize");
   url.searchParams.set("client_id", config.GITHUB_CLIENT_ID ?? "");
@@ -116,8 +127,17 @@ export async function completeGithubLogin(
   }
 
   return deps.db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.githubId, identity.id))
+      .limit(1);
     const user = await upsertGithubUser(tx, identity, deps.config, now);
     if (user.status === "suspended") return fail("suspended");
+    // 首次登入：登入頁寫明「登入即表示同意」並帶上當時的版本，版本仍是目前版本才記錄。
+    // 既有使用者（含條款改版後）改由控制台的同意對話框重新同意（POST /me/consent）。
+    const consented = !existing && !!saved.consent && matchesCurrent(saved.consent);
+    if (consented) await recordConsent(tx, user.id, "login", now);
     if (input.previousSession) {
       await revokeSessionById(tx, sha256Hex(input.previousSession), now);
     }
@@ -138,7 +158,7 @@ export async function completeGithubLogin(
       targetType: "user",
       targetId: user.id,
       targetLabel: user.githubLogin,
-      metadata: { method: "github" },
+      metadata: { method: "github", ...(consented ? { consent: saved.consent } : {}) },
     });
     return {
       ok: true as const,

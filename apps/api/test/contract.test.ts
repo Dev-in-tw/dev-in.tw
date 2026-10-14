@@ -106,6 +106,12 @@ describe.skipIf(!pgAvailable)("contract consistency", () => {
     await alice("updateMe", { body: { displayName: "Alice" } });
     await alice("listSessions");
     await alice("listMyActivity", { query: { limit: 10 } });
+    expect(me.consentRequired).toBe(false);
+    await alice("acceptLegal", { body: requests.acceptLegal });
+    await expectCode(
+      alice("acceptLegal", { body: { termsVersion: "0.1", privacyVersion: "0.1" } }),
+      "CONSENT_REQUIRED",
+    );
 
     const body = {
       name: "alice-blog",

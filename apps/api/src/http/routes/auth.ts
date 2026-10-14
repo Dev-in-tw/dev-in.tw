@@ -1,5 +1,6 @@
 import { AppError } from "../../lib/problem.ts";
 import { writeAudit } from "../../modules/audit/service.ts";
+import { latestConsent, recordConsent } from "../../modules/identity/consent.ts";
 import { completeGithubLogin, startGithubLogin } from "../../modules/identity/github-oauth.ts";
 import {
   clearCookie,
@@ -29,7 +30,10 @@ export function authRoutes(reg: Registry): void {
       if (!deps.config.GITHUB_CLIENT_ID) {
         return redirect(`${deps.config.APP_ORIGIN}/login?error=oauth_failed`, 302);
       }
-      const start = startGithubLogin(deps, query.redirect);
+      const start = startGithubLogin(deps, query.redirect, {
+        termsVersion: query.termsVersion,
+        privacyVersion: query.privacyVersion,
+      });
       return redirect(start.location, 302, [
         `${OAUTH_COOKIE}=${start.cookieValue}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${start.maxAgeSeconds}`,
       ]);
@@ -81,6 +85,8 @@ export function authRoutes(reg: Registry): void {
           body.role,
         );
         if (user.status === "suspended") throw new AppError("ACCOUNT_SUSPENDED");
+        // dev 登入（只在開發與測試開啟）視同首次登入時在登入頁同意目前版本
+        if (!(await latestConsent(tx, user.id))) await recordConsent(tx, user.id, "login", now);
         const sessionToken = await createSession(tx, {
           userId: user.id,
           ip: c.get("clientIp"),

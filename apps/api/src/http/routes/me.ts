@@ -1,3 +1,4 @@
+import { acceptLegal } from "../../modules/identity/consent.ts";
 import {
   deleteMe,
   getMe,
@@ -9,6 +10,7 @@ import {
 } from "../../modules/identity/me.ts";
 import { clearCookie, SESSION_COOKIE } from "../../modules/identity/sessions.ts";
 import { define, type Registry } from "../define.ts";
+import { RULES } from "../middleware/rate-limit.ts";
 
 export function meRoutes(reg: Registry): void {
   define(reg, "getMe", ({ c, user }) => getMe(c.get("deps"), user));
@@ -31,5 +33,13 @@ export function meRoutes(reg: Registry): void {
     await revokeOtherSessions(c.get("deps"), user, session, actor);
     return new Response(null, { status: 204 });
   });
+  define(
+    reg,
+    "acceptLegal",
+    ({ c, user, body, actor }) => acceptLegal(c.get("deps"), user, body, actor),
+    {
+      rateLimits: [RULES.consent],
+    },
+  );
   define(reg, "listMyActivity", ({ c, user, query }) => listMyActivity(c.get("deps"), user, query));
 }

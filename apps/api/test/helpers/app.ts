@@ -226,6 +226,36 @@ export function contractClient(t: TestContext, cookie?: string): Client {
 
 export type Call = <N extends EndpointName>(name: N, req?: RequestOf<N>) => ReturnType<Client>;
 
+/** 從回應取出某個 Set-Cookie 的 name=value */
+export function cookieFrom(res: Response, name: string): string {
+  const all = res.headers.getSetCookie?.() ?? [res.headers.get("set-cookie") ?? ""];
+  const found = all.find((c) => c.startsWith(`${name}=`)) ?? "";
+  return found.split(";")[0] ?? "";
+}
+
+/**
+ * 走一次 GitHub OAuth（FakeGithub）：start → callback，回傳 session cookie。
+ * query 是 start 的額外參數（例如登入頁帶上的條款版本）。
+ */
+export async function githubLogin(
+  t: TestContext,
+  identity: GithubIdentity,
+  query: Record<string, string> = {},
+): Promise<string> {
+  const code = `code-${identity.id}-${Math.random().toString(36).slice(2)}`;
+  t.github.identities.set(code, identity);
+  const qs = new URLSearchParams(query).toString();
+  const start = await request(t, "GET", `/api/v1/auth/github/start${qs ? `?${qs}` : ""}`);
+  const state = new URL(start.headers.get("location") as string).searchParams.get("state");
+  const oauth = cookieFrom(start, "__Host-dit_oauth");
+  const cb = await request(t, "GET", `/api/v1/auth/github/callback?code=${code}&state=${state}`, {
+    cookie: oauth,
+  });
+  const session = cookieFrom(cb, "__Host-dit_session");
+  if (!session) throw new Error(`github login failed: ${cb.headers.get("location")}`);
+  return session;
+}
+
 /** 建立一個 active 的子網域（含 Turnstile 通過） */
 export async function claim(t: TestContext, cookie: string, name: string) {
   const res = await request(t, "POST", "/api/v1/subdomains", {
