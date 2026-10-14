@@ -6,6 +6,7 @@ import {
   createSession,
   OAUTH_COOKIE,
   revokeSessionById,
+  SESSION_COOKIE,
   sessionCookie,
 } from "../../modules/identity/sessions.ts";
 import { devIdentity, upsertGithubUser } from "../../modules/identity/users.ts";
@@ -46,6 +47,7 @@ export function authRoutes(reg: Registry): void {
         state: query.state,
         error: query.error,
         cookie: readCookie(c.req.header("cookie"), OAUTH_COOKIE),
+        previousSession: readCookie(c.req.header("cookie"), SESSION_COOKIE),
         ip: c.get("clientIp"),
         userAgent: c.req.header("user-agent") ?? null,
         requestId: c.get("requestId"),
@@ -119,7 +121,7 @@ export function authRoutes(reg: Registry): void {
       });
       return new Response(null, {
         status: 204,
-        headers: { "Set-Cookie": clearCookie("__Host-dit_session") },
+        headers: { "Set-Cookie": clearCookie(SESSION_COOKIE) },
       });
     },
     { allowSuspended: true },

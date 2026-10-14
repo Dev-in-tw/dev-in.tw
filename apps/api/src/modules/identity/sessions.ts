@@ -1,4 +1,5 @@
 import { and, eq, isNull, ne, sql } from "drizzle-orm";
+import type { Config } from "../../config.ts";
 import type { Executor } from "../../db/client.ts";
 import { type SessionRow, sessions, type UserRow, users } from "../../db/schema.ts";
 import { addMs, DAY, HOUR } from "../../lib/clock.ts";
@@ -74,6 +75,20 @@ export async function resolveSession(
     session.idleExpiresAt = idle;
   }
   return { session, user };
+}
+
+/**
+ * 實際生效的角色。DB 的 role 只在登入時依 ADMIN_GITHUB_IDS 寫入；從清單移除的人在 session 到期前
+ * （最長 60 天）仍會是 admin，所以每個請求再比對一次。dev 登入（只在非 production）可以指定角色。
+ */
+export function effectiveRole(
+  user: Pick<UserRow, "role" | "githubId">,
+  config: Pick<Config, "ADMIN_GITHUB_IDS" | "AUTH_DEV_LOGIN" | "NODE_ENV">,
+): UserRow["role"] {
+  if (user.role !== "admin") return user.role;
+  if (config.ADMIN_GITHUB_IDS.includes(user.githubId)) return "admin";
+  if (config.AUTH_DEV_LOGIN && config.NODE_ENV !== "production") return "admin";
+  return "user";
 }
 
 export async function revokeSessionById(ex: Executor, sessionId: string, now: Date) {

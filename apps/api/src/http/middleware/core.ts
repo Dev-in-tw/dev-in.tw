@@ -2,7 +2,7 @@ import type { MiddlewareHandler } from "hono";
 import { randomToken } from "../../lib/crypto.ts";
 import { hashIp, rateKeyForIp, resolveClientIp, resolveViaCloudflare } from "../../lib/net.ts";
 import { AppError } from "../../lib/problem.ts";
-import { resolveSession, SESSION_COOKIE } from "../../modules/identity/sessions.ts";
+import { effectiveRole, resolveSession, SESSION_COOKIE } from "../../modules/identity/sessions.ts";
 import type { AppEnv } from "../env.ts";
 import { type RateLimiter, RULES } from "./rate-limit.ts";
 
@@ -70,24 +70,38 @@ export const securityHeaders = (): MiddlewareHandler<AppEnv> => async (c, next) 
   if (!c.res.headers.has("Cache-Control")) c.header("Cache-Control", "no-store");
 };
 
-/** 解析 __Host-dit_session（同一個請求只查一次）。Bearer token（PAT）是 P2，目前忽略。 */
+/**
+ * 解析 __Host-dit_session（同一個請求只查一次）。Bearer token（PAT）是 P2，目前忽略。
+ * 角色每個請求都依 ADMIN_GITHUB_IDS 重算：被移出清單的管理員不必等到下次登入才失去權限。
+ */
 export const session = (): MiddlewareHandler<AppEnv> => async (c, next) => {
   const deps = c.get("deps");
   const token = readCookie(c.req.header("cookie"), SESSION_COOKIE);
   const resolved = token ? await resolveSession(deps.db, token, deps.clock.now()) : null;
+  if (resolved) {
+    const role = effectiveRole(resolved.user, deps.config);
+    if (role !== resolved.user.role) resolved.user = { ...resolved.user, role };
+  }
   c.set("session", resolved);
   if (resolved) c.get("log").user_id = resolved.user.id;
   await next();
 };
 
+/**
+ * 讀 cookie。同名 cookie 出現不只一次時視為不存在：`__Host-` 前綴已經擋掉子網域植入，但舊瀏覽器的
+ * nameless cookie（`=__Host-x=v`）等繞過手法會讓 header 裡出現兩個同名值，這時寧可當作沒登入。
+ */
 export function readCookie(header: string | undefined, name: string): string | undefined {
   if (!header) return undefined;
+  let found: string | undefined;
   for (const part of header.split(";")) {
     const index = part.indexOf("=");
     if (index < 0) continue;
-    if (part.slice(0, index).trim() === name) return part.slice(index + 1).trim();
+    if (part.slice(0, index).trim() !== name) continue;
+    if (found !== undefined) return undefined;
+    found = part.slice(index + 1).trim();
   }
-  return undefined;
+  return found;
 }
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
