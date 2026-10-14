@@ -2258,7 +2258,7 @@ export function toZoneLine(r: DnsRecord): string;    // "www  300  IN  CNAME  al
 
 ### 7.1 後續決定（2026-10-14）
 
-- **平台信箱（已更新，取代原本的 contact@lazco.tw）**：依 Lazco 規範（`product-domain.md`：刻意不使用 contact@lazco.tw）分流，以 Cloudflare Email Routing 轉寄：
+- **平台信箱（2026-10-14 起改由 Google Workspace 收信）**：dev-in.tw 已加入 Lazco 的 Google Workspace 成為使用者別名網域，`abuse@`、`security@`、`hello@dev-in.tw` 是 Workspace 上的別名，收件人在 Workspace 管理主控台設定。DNS：MX 指向 Google、SPF `include:_spf.google.com`、DKIM `google._domainkey`、`_dmarc` 維持 `p=reject; sp=none`。Cloudflare Email Routing 已停用（搬到 Lazco DNS 後也無法使用）。以下為停用前的 Cloudflare 轉寄設定，僅供參考，依 Lazco 規範（`product-domain.md`：刻意不使用 contact@lazco.tw）分流：
   - `abuse@dev-in.tw` → `abuse@lazco.tw`
   - `security@dev-in.tw` → `security@lazco.tw`
   - `hello@dev-in.tw` → `support@lazco.tw`
