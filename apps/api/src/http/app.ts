@@ -32,7 +32,7 @@ export interface AppOptions {
   ssePingMs?: number;
 }
 
-async function dbHealthy(deps: Deps): Promise<boolean> {
+async function pingDb(deps: Deps): Promise<boolean> {
   try {
     await Promise.race([
       deps.db.execute(sql`select 1`),
@@ -57,8 +57,27 @@ export const SCALAR_CDN = "https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.
  */
 export const STORAGE_SHIM = `<script>(function(){function m(){var d=new Map();return{getItem:function(k){k=String(k);return d.has(k)?d.get(k):null},setItem:function(k,v){d.set(String(k),String(v))},removeItem:function(k){d.delete(String(k))},clear:function(){d.clear()},key:function(i){var a=Array.from(d.keys());return i<a.length?a[i]:null},get length(){return d.size}}}["localStorage","sessionStorage"].forEach(function(n){try{window[n]}catch(e){Object.defineProperty(window,n,{value:m(),configurable:true})}})})();</script>`;
 
+/**
+ * /healthz 與 /readyz 不在 /v1 底下、沒有限流，又是公開的：同一秒內的探測共用一次 DB 查詢，
+ * 避免被當成打 DB 的放大器。
+ */
+export function healthProbe(
+  ping: () => Promise<boolean>,
+  ttlMs = 1000,
+  now: () => number = Date.now,
+): () => Promise<boolean> {
+  let last: { at: number; ok: Promise<boolean> } | null = null;
+  return () => {
+    const at = now();
+    if (last && at - last.at < ttlMs) return last.ok;
+    last = { at, ok: ping() };
+    return last.ok;
+  };
+}
+
 export function createApp(deps: Deps, options: AppOptions = {}) {
   const app = new Hono<AppEnv>().basePath("/api");
+  const dbHealthy = healthProbe(() => pingDb(deps));
   const reg: Registry = {
     app,
     limiter:
@@ -116,12 +135,12 @@ export function createApp(deps: Deps, options: AppOptions = {}) {
 
   // liveness + DB：Docker HEALTHCHECK 用
   app.get("/healthz", async (c) => {
-    const db = await dbHealthy(deps);
+    const db = await dbHealthy();
     return c.json({ ok: db, db: db ? "ok" : "down" }, db ? 200 : 503);
   });
   // readiness：DB 1 秒內回應、worker 心跳 30 秒內
   app.get("/readyz", async (c) => {
-    const db = await dbHealthy(deps);
+    const db = await dbHealthy();
     const beat = deps.runtime.workerHeartbeat;
     const worker =
       !deps.runtime.workerEnabled ||
