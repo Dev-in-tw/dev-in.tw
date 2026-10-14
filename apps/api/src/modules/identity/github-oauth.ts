@@ -4,11 +4,12 @@ import {
   randomToken,
   safeEqual,
   sha256Base64Url,
+  sha256Hex,
   signPayload,
   verifyPayload,
 } from "../../lib/crypto.ts";
 import { writeAudit } from "../audit/service.ts";
-import { createSession } from "./sessions.ts";
+import { createSession, revokeSessionById } from "./sessions.ts";
 import { upsertGithubUser } from "./users.ts";
 
 export const DEFAULT_REDIRECT = "/dashboard";
@@ -74,6 +75,8 @@ export async function completeGithubLogin(
     state?: string | undefined;
     error?: string | undefined;
     cookie: string | undefined;
+    /** 瀏覽器原本帶著的 session cookie：登入成功後撤銷，不讓舊 token（可能是被植入的）繼續有效 */
+    previousSession?: string | undefined;
     ip: string | null;
     userAgent: string | null;
     requestId: string;
@@ -115,6 +118,9 @@ export async function completeGithubLogin(
   return deps.db.transaction(async (tx) => {
     const user = await upsertGithubUser(tx, identity, deps.config, now);
     if (user.status === "suspended") return fail("suspended");
+    if (input.previousSession) {
+      await revokeSessionById(tx, sha256Hex(input.previousSession), now);
+    }
     const sessionToken = await createSession(tx, {
       userId: user.id,
       ip: input.ip,

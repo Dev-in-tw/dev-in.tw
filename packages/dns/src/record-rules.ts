@@ -30,6 +30,39 @@ const SRV_NAME_RE =
   /^_[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.(_tcp|_udp|_tls)(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)?$/;
 const MAX_CNAME_CHAIN = 16;
 
+/**
+ * 不能當成 CNAME / MX / SRV 目標的網域：RFC 6761 / 6762 / 8375 / 9476 的特殊用途名稱、
+ * ICANN 保留的 .internal，以及 ICANN 不會開放、常被拿來當內網網域的名稱（name collision）。
+ * 這是縱深防禦：指向攻擊者自己的網域照樣可以解析到內網位址（DNS rebinding），擋不完。
+ */
+export const SPECIAL_USE_SUFFIXES = [
+  "localhost",
+  "local",
+  "localdomain",
+  "internal",
+  "intranet",
+  "private",
+  "lan",
+  "home",
+  "corp",
+  "mail",
+  "arpa",
+  "test",
+  "example",
+  "invalid",
+  "onion",
+  "alt",
+] as const;
+
+/** 主機名稱的 TLD（或 home.arpa 之類）是否屬於特殊用途 */
+export function isSpecialUseHostname(hostname: string): boolean {
+  const tld = hostname.slice(hostname.lastIndexOf(".") + 1);
+  return (SPECIAL_USE_SUFFIXES as readonly string[]).includes(tld);
+}
+
+/** IDNA 的 A-label（xn--）：子網域底下的紀錄名稱也不開放，以免被用來做同形異義字的釣魚網址 */
+const PUNYCODE_LABEL = /(?:^|\.)_?xn--/;
+
 /** 相對名稱轉 FQDN："@" → "<sub>.<root>"，"www" → "www.<sub>.<root>" */
 export function toFqdn(recordName: string, sub: string, root: string): string {
   return recordName === "@" ? `${sub}.${root}` : `${recordName}.${sub}.${root}`;
@@ -73,6 +106,14 @@ function checkHostnameTarget(
       path,
       code: "VALIDATION_FAILED",
       message: `${what}不是合法的主機名稱（例如 example.com，不含結尾的點）`,
+    });
+    return false;
+  }
+  if (isSpecialUseHostname(value)) {
+    out.push({
+      path,
+      code: "RECORD_TARGET_NOT_ALLOWED",
+      message: `${what}不能指向內部或保留用途的網域（例如 .local、.internal、.localhost）`,
     });
     return false;
   }
@@ -256,6 +297,12 @@ export function validateRecord(input: RecordInput, ctx: RecordContext): Verdict 
       path: "name",
       code: "VALIDATION_FAILED",
       message: "名稱必須是 @ 或 1–3 段小寫英數 label（可以底線開頭，例如 _acme-challenge）",
+    });
+  } else if (PUNYCODE_LABEL.test(input.name)) {
+    violations.push({
+      path: "name",
+      code: "VALIDATION_FAILED",
+      message: "名稱不能使用國際化網域的 xn-- 標籤，以免被用來偽裝成其他網站",
     });
   } else if (fqdn.length > MAX_FQDN_LENGTH) {
     violations.push({

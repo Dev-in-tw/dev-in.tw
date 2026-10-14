@@ -1,0 +1,10 @@
+name: Dev-in.tw CodeQL config
+# security-extended adds the lower-precision security queries on top of the default suite.
+queries:
+  - uses: security-extended
+paths-ignore:
+  # Tests, e2e specs and the dev-only mock gateway never ship in an image.
+  - "**/test/**"
+  - "apps/web/e2e/**"
+  - "apps/web/mock/**"
+  - "apps/web/scripts/**"

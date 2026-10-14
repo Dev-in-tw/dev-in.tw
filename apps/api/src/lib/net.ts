@@ -1,4 +1,5 @@
 import { isIP } from "node:net";
+import { parseIPv6 } from "@dit/dns";
 import { isCloudflareIp } from "./cloudflare.ts";
 import { sha256Hex } from "./crypto.ts";
 
@@ -42,6 +43,22 @@ export function resolveViaCloudflare(
 ): string | null {
   if (!isCloudflareIp(proxied)) return proxied;
   return normalizeIp(cfConnectingIp) ?? proxied;
+}
+
+/**
+ * 限流與連線上限用的 key。IPv4 用完整位址；IPv6 一般一個用戶就分到整個 /64（常常更大），
+ * 用完整位址當 key 等於讓人換位址就能繞過限流、還能塞爆 bucket，所以只取前 64 位元。
+ */
+export function rateKeyForIp(ip: string | null | undefined): string {
+  const normalized = normalizeIp(ip);
+  if (!normalized) return "unknown";
+  if (isIP(normalized) === 4) return normalized;
+  const groups = parseIPv6(normalized);
+  if (!groups) return normalized;
+  return `${groups
+    .slice(0, 4)
+    .map((g) => g.toString(16))
+    .join(":")}::/64`;
 }
 
 /** 給使用者看的大略位置："203.0.113.x"、"2001:db8:1234::/48" */

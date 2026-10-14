@@ -7,7 +7,7 @@ import { createDeps } from "../../src/bootstrap.ts";
 import { type Config, loadConfig } from "../../src/config.ts";
 import type { Deps } from "../../src/context.ts";
 import { seedReservedNames } from "../../src/db/seed.ts";
-import { createApp } from "../../src/http/app.ts";
+import { type AppOptions, createApp } from "../../src/http/app.ts";
 import { RateLimiter } from "../../src/http/middleware/rate-limit.ts";
 import { ManualClock } from "../../src/lib/clock.ts";
 import { createLogger, silentLogger } from "../../src/lib/logger.ts";
@@ -55,9 +55,13 @@ export class FakeGithub implements GithubClient {
 
 export class FakeDoh implements DohResolver {
   answers = new Map<string, string[]>();
+  /** "<resolver>|<fqdn>" 或 "*|<fqdn>"：回 NXDOMAIN */
+  nxdomain = new Set<string>();
   calls = 0;
   async query(resolver: string, fqdn: string, type: string) {
     this.calls++;
+    if (this.nxdomain.has(`${resolver}|${fqdn}`) || this.nxdomain.has(`*|${fqdn}`))
+      return { answers: [], latencyMs: 12, error: null, nxdomain: true };
     if (resolver === "quad101" && fqdn.startsWith("slow."))
       return { answers: [], latencyMs: null, error: "逾時" };
     return { answers: this.answers.get(`${fqdn}|${type}`) ?? [], latencyMs: 12, error: null };
@@ -79,7 +83,7 @@ export interface TestContext {
 }
 
 export async function setupTestApp(
-  opts: { env?: Record<string, string>; seed?: boolean } = {},
+  opts: { env?: Record<string, string>; seed?: boolean; app?: AppOptions } = {},
 ): Promise<TestContext> {
   const database = await createTestDatabase();
   const config = loadConfig(testEnv(database.url, opts.env));
@@ -107,7 +111,12 @@ export async function setupTestApp(
   if (opts.seed !== false) await seedReservedNames(deps.db);
   await deps.bus.start(deps.sql);
   const limiter = new RateLimiter(() => clock.now().getTime());
-  const app = createApp(deps, { limiter, validateResponses: true, ssePingMs: 1000 });
+  const app = createApp(deps, {
+    limiter,
+    validateResponses: true,
+    ssePingMs: 1000,
+    ...opts.app,
+  });
   const worker = new SyncWorker(deps);
   return {
     config,

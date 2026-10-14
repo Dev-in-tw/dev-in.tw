@@ -1,8 +1,9 @@
 import type { MiddlewareHandler } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { randomToken } from "../../lib/crypto.ts";
-import { hashIp, resolveClientIp, resolveViaCloudflare } from "../../lib/net.ts";
+import { hashIp, rateKeyForIp, resolveClientIp, resolveViaCloudflare } from "../../lib/net.ts";
 import { AppError } from "../../lib/problem.ts";
-import { resolveSession, SESSION_COOKIE } from "../../modules/identity/sessions.ts";
+import { effectiveRole, resolveSession, SESSION_COOKIE } from "../../modules/identity/sessions.ts";
 import type { AppEnv } from "../env.ts";
 import { type RateLimiter, RULES } from "./rate-limit.ts";
 
@@ -61,33 +62,78 @@ export const wideLog = (): MiddlewareHandler<AppEnv> => async (c, next) => {
   else deps.logger.info(line, "request");
 };
 
-export const securityHeaders = (): MiddlewareHandler<AppEnv> => async (c, next) => {
-  await next();
-  c.header("X-Content-Type-Options", "nosniff");
-  c.header("Referrer-Policy", "strict-origin-when-cross-origin");
-  c.header("Cross-Origin-Resource-Policy", "same-origin");
-  c.header("X-Frame-Options", "DENY");
-  if (!c.res.headers.has("Cache-Control")) c.header("Cache-Control", "no-store");
-};
+/** API 回應（JSON、problem+json、SSE）不需要載入任何資源，也不該被嵌入或當成文件執行 */
+export const API_CSP =
+  "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
+/**
+ * /api/docs（Scalar）從 CDN 載入第三方腳本。用 CSP sandbox（不給 allow-same-origin）讓它跑在
+ * opaque origin：讀不到 cookie、送出的請求 Origin 是 null（寫入會被 CSRF 擋下），就算 CDN 上的套件
+ * 被竄改，也碰不到 dev-in.tw 的 session。
+ */
+export const DOCS_CSP =
+  "sandbox allow-scripts allow-popups; frame-ancestors 'none'; base-uri 'none'; object-src 'none'; form-action 'none'";
+export const HSTS = "max-age=63072000";
 
-/** 解析 __Host-dit_session（同一個請求只查一次）。Bearer token（PAT）是 P2，目前忽略。 */
+export const securityHeaders =
+  (opts: { hsts?: boolean; docsPath?: string } = {}): MiddlewareHandler<AppEnv> =>
+  async (c, next) => {
+    await next();
+    c.header("X-Content-Type-Options", "nosniff");
+    c.header("Referrer-Policy", "strict-origin-when-cross-origin");
+    c.header("Cross-Origin-Resource-Policy", "same-origin");
+    c.header("Cross-Origin-Opener-Policy", "same-origin");
+    c.header("X-Frame-Options", "DENY");
+    c.header("Content-Security-Policy", c.req.path === opts.docsPath ? DOCS_CSP : API_CSP);
+    // 不加 includeSubDomains 與 preload：使用者子網域不一定有 HTTPS（PLAN §6 Q14）
+    if (opts.hsts) c.header("Strict-Transport-Security", HSTS);
+    if (!c.res.headers.has("Cache-Control")) c.header("Cache-Control", "no-store");
+  };
+
+/** 請求 body 上限：最大的合法 body（2,048 字元的 TXT、2,000 字的檢舉內容）都遠小於這個值 */
+export const MAX_BODY_BYTES = 32 * 1024;
+
+export const limitBody = (maxSize = MAX_BODY_BYTES): MiddlewareHandler<AppEnv> =>
+  bodyLimit({
+    maxSize,
+    onError: () => {
+      throw new AppError("VALIDATION_FAILED", "請求內容太大", {
+        errors: [{ path: "(body)", code: "too_large", message: `body 不能超過 ${maxSize} bytes` }],
+      });
+    },
+  });
+
+/**
+ * 解析 __Host-dit_session（同一個請求只查一次）。Bearer token（PAT）是 P2，目前忽略。
+ * 角色每個請求都依 ADMIN_GITHUB_IDS 重算：被移出清單的管理員不必等到下次登入才失去權限。
+ */
 export const session = (): MiddlewareHandler<AppEnv> => async (c, next) => {
   const deps = c.get("deps");
   const token = readCookie(c.req.header("cookie"), SESSION_COOKIE);
   const resolved = token ? await resolveSession(deps.db, token, deps.clock.now()) : null;
+  if (resolved) {
+    const role = effectiveRole(resolved.user, deps.config);
+    if (role !== resolved.user.role) resolved.user = { ...resolved.user, role };
+  }
   c.set("session", resolved);
   if (resolved) c.get("log").user_id = resolved.user.id;
   await next();
 };
 
+/**
+ * 讀 cookie。同名 cookie 出現不只一次時視為不存在：`__Host-` 前綴已經擋掉子網域植入，但舊瀏覽器的
+ * nameless cookie（`=__Host-x=v`）等繞過手法會讓 header 裡出現兩個同名值，這時寧可當作沒登入。
+ */
 export function readCookie(header: string | undefined, name: string): string | undefined {
   if (!header) return undefined;
+  let found: string | undefined;
   for (const part of header.split(";")) {
     const index = part.indexOf("=");
     if (index < 0) continue;
-    if (part.slice(0, index).trim() === name) return part.slice(index + 1).trim();
+    if (part.slice(0, index).trim() !== name) continue;
+    if (found !== undefined) return undefined;
+    found = part.slice(index + 1).trim();
   }
-  return undefined;
+  return found;
 }
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
@@ -130,8 +176,7 @@ export const csrf =
 export const globalRateLimit =
   (limiter: RateLimiter): MiddlewareHandler<AppEnv> =>
   async (c, next) => {
-    const ip = c.get("clientIp") ?? "unknown";
-    const result = limiter.take(RULES.global, ip);
+    const result = limiter.take(RULES.global, rateKeyForIp(c.get("clientIp")));
     if (!result.ok) {
       c.get("log").rate_limited = true;
       throw new AppError("RATE_LIMITED", undefined, {

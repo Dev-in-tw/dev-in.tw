@@ -8,7 +8,7 @@ export function GET() {
     `Expires: ${expires}`,
     "Preferred-Languages: zh-Hant, en",
     "Canonical: https://dev-in.tw/.well-known/security.txt",
-    "Policy: https://dev-in.tw/aup",
+    "Policy: https://github.com/Dev-in-tw/dev-in.tw/security/policy",
     "",
   ].join("\n");
   return new Response(body, { headers: { "content-type": "text/plain; charset=utf-8" } });

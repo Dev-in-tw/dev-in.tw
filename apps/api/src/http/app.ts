@@ -10,6 +10,7 @@ import {
   clientIp,
   csrf,
   globalRateLimit,
+  limitBody,
   requestId,
   securityHeaders,
   session,
@@ -19,7 +20,7 @@ import { RateLimiter } from "./middleware/rate-limit.ts";
 import { buildOpenApi } from "./openapi.ts";
 import { adminRoutes } from "./routes/admin.ts";
 import { authRoutes } from "./routes/auth.ts";
-import { eventRoutes } from "./routes/events.ts";
+import { eventRoutes, type StreamLimits } from "./routes/events.ts";
 import { meRoutes } from "./routes/me.ts";
 import { publicRoutes } from "./routes/public.ts";
 import { subdomainRoutes } from "./routes/subdomains.ts";
@@ -29,9 +30,11 @@ export interface AppOptions {
   /** 非 production 預設開啟：回應不符合合約時直接 500 */
   validateResponses?: boolean;
   ssePingMs?: number;
+  sseRevalidateMs?: number;
+  sseLimits?: Partial<StreamLimits>;
 }
 
-async function dbHealthy(deps: Deps): Promise<boolean> {
+async function pingDb(deps: Deps): Promise<boolean> {
   try {
     await Promise.race([
       deps.db.execute(sql`select 1`),
@@ -47,8 +50,36 @@ async function dbHealthy(deps: Deps): Promise<boolean> {
  * Hono app，所有路由都在 /api 底下（Traefik 不 strip prefix）。中介層順序（PLAN §3.6）：
  * requestId → clientIp → wideLog → securityHeaders → problem（onError）→ session → csrf → rateLimit → route
  */
+/** Scalar 的版本固定下來（不跟著 CDN 的 latest 走）；更新時一併確認發佈超過三天 */
+export const SCALAR_CDN = "https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.73.1";
+
+/**
+ * /api/docs 以 CSP sandbox 跑在 opaque origin，存取 localStorage / sessionStorage 會丟 SecurityError，
+ * Scalar 因此無法初始化。在載入 Scalar 之前換成只存在記憶體裡的版本。
+ */
+export const STORAGE_SHIM = `<script>(function(){function m(){var d=new Map();return{getItem:function(k){k=String(k);return d.has(k)?d.get(k):null},setItem:function(k,v){d.set(String(k),String(v))},removeItem:function(k){d.delete(String(k))},clear:function(){d.clear()},key:function(i){var a=Array.from(d.keys());return i<a.length?a[i]:null},get length(){return d.size}}}["localStorage","sessionStorage"].forEach(function(n){try{window[n]}catch(e){Object.defineProperty(window,n,{value:m(),configurable:true})}})})();</script>`;
+
+/**
+ * /healthz 與 /readyz 不在 /v1 底下、沒有限流，又是公開的：同一秒內的探測共用一次 DB 查詢，
+ * 避免被當成打 DB 的放大器。
+ */
+export function healthProbe(
+  ping: () => Promise<boolean>,
+  ttlMs = 1000,
+  now: () => number = Date.now,
+): () => Promise<boolean> {
+  let last: { at: number; ok: Promise<boolean> } | null = null;
+  return () => {
+    const at = now();
+    if (last && at - last.at < ttlMs) return last.ok;
+    last = { at, ok: ping() };
+    return last.ok;
+  };
+}
+
 export function createApp(deps: Deps, options: AppOptions = {}) {
   const app = new Hono<AppEnv>().basePath("/api");
+  const dbHealthy = healthProbe(() => pingDb(deps));
   const reg: Registry = {
     app,
     limiter:
@@ -64,7 +95,13 @@ export function createApp(deps: Deps, options: AppOptions = {}) {
   app.use("*", requestId());
   app.use("*", clientIp(deps.config.TRUSTED_PROXY_HOPS, deps.config.TRUST_CLOUDFLARE));
   app.use("*", wideLog());
-  app.use("*", securityHeaders());
+  app.use(
+    "*",
+    securityHeaders({
+      hsts: deps.config.APP_ORIGIN.startsWith("https://"),
+      docsPath: "/api/docs",
+    }),
+  );
 
   app.onError((error, c) => {
     const requestIdValue = c.get("requestId") ?? "unknown";
@@ -100,12 +137,12 @@ export function createApp(deps: Deps, options: AppOptions = {}) {
 
   // liveness + DB：Docker HEALTHCHECK 用
   app.get("/healthz", async (c) => {
-    const db = await dbHealthy(deps);
+    const db = await dbHealthy();
     return c.json({ ok: db, db: db ? "ok" : "down" }, db ? 200 : 503);
   });
   // readiness：DB 1 秒內回應、worker 心跳 30 秒內
   app.get("/readyz", async (c) => {
-    const db = await dbHealthy(deps);
+    const db = await dbHealthy();
     const beat = deps.runtime.workerHeartbeat;
     const worker =
       !deps.runtime.workerEnabled ||
@@ -116,11 +153,23 @@ export function createApp(deps: Deps, options: AppOptions = {}) {
   const openapi = buildOpenApi({ serverUrl: deps.config.APP_ORIGIN, version: "1.0.0" });
   app.get("/openapi.json", (c) => {
     c.header("Cache-Control", "public, max-age=300");
+    // /api/docs 跑在 sandbox（opaque origin）裡，要靠 CORS 才讀得到；文件本來就公開、不帶 cookie
+    c.header("Access-Control-Allow-Origin", "*");
     return c.json(openapi);
   });
-  app.get("/docs", Scalar({ url: "/api/openapi.json", pageTitle: "Dev-in.tw API" }));
+  const docs = Scalar<AppEnv>({
+    url: "/api/openapi.json",
+    pageTitle: "Dev-in.tw API",
+    cdn: SCALAR_CDN,
+  });
+  app.get("/docs", async (c, next) => {
+    const res = await docs(c, next);
+    const html = res ? await res.text() : "";
+    return c.html(html.replace("<head>", `<head>${STORAGE_SHIM}`));
+  });
 
   app.use("/v1/*", globalRateLimit(reg.limiter));
+  app.use("/v1/*", limitBody());
   app.use("/v1/*", session());
   app.use("/v1/*", csrf(deps.config.APP_ORIGIN));
 
@@ -129,9 +178,13 @@ export function createApp(deps: Deps, options: AppOptions = {}) {
   meRoutes(reg);
   subdomainRoutes(reg);
   adminRoutes(reg);
-  eventRoutes(reg, options.ssePingMs !== undefined ? { pingMs: options.ssePingMs } : {});
+  const streams = eventRoutes(reg, {
+    ...(options.ssePingMs !== undefined ? { pingMs: options.ssePingMs } : {}),
+    ...(options.sseRevalidateMs !== undefined ? { revalidateMs: options.sseRevalidateMs } : {}),
+    ...(options.sseLimits !== undefined ? { limits: options.sseLimits } : {}),
+  });
 
-  return Object.assign(app, { registered: reg.registered, limiter: reg.limiter });
+  return Object.assign(app, { registered: reg.registered, limiter: reg.limiter, streams });
 }
 
 export type App = ReturnType<typeof createApp>;

@@ -4,7 +4,7 @@ import { cookies, headers as requestHeaders } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 
-/** RSC 在 server 端打 API：`${API_INTERNAL_URL}/api/v1`，並轉發瀏覽器的 cookie */
+/** RSC 在 server 端打 API：`${API_INTERNAL_URL}/api/v1`，並原樣轉發瀏覽器的 Cookie header */
 function internalBase(): string {
   const origin = process.env.API_INTERNAL_URL ?? "http://localhost:3001";
   return `${origin.replace(/\/+$/, "")}/api/v1`;
@@ -15,12 +15,11 @@ export const getServerApi = cache((): Client => {
     baseUrl: internalBase(),
     validateResponses: process.env.NODE_ENV !== "production",
     async headers(): Promise<Record<string, string>> {
-      const [jar, incoming] = await Promise.all([cookies(), requestHeaders()]);
+      const incoming = await requestHeaders();
       const out: Record<string, string> = {};
-      const cookie = jar
-        .getAll()
-        .map((c) => `${c.name}=${c.value}`)
-        .join("; ");
+      // 原樣轉發 Cookie header，不要用 cookies().getAll() 重組：Next 解析時同名 cookie 只留一個，
+      // API 就看不到「同名 cookie 出現兩次」（子網域植入的訊號，見 docs/security/AUDIT-2026-10.md L-04）
+      const cookie = incoming.get("cookie");
       if (cookie) out.cookie = cookie;
       // 原樣轉發 X-Forwarded-For 與 CF-Connecting-IP：API 依此取得 client IP 做限流，
       // 少了它所有訪客會共用 web 容器的 IP 額度

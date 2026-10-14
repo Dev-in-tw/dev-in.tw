@@ -148,6 +148,14 @@ async function runReconcile(deps: Deps, opts: ReconcileOptions): Promise<Reconci
     await setSetting(deps.db, "reconcile_report", report);
     return report;
   }
+  // 管理員在啟動之後才手動加到 zone 的名稱，也要在下一輪對帳時變成保留字；否則使用者可以申請
+  // 同名的子網域，並在底下加 _acme-challenge 之類的紀錄替那個名稱拿憑證
+  try {
+    const imported = await importZoneNames(deps, providerRecords);
+    if (imported.length > 0) deps.logger.info({ imported }, "reconcile: zone names reserved");
+  } catch (error) {
+    deps.logger.warn({ err: error }, "reconcile: importing zone names failed");
+  }
   const system = systemFqdns(deps);
   const candidates = providerRecords.filter((r) => !system.has(r.fqdn));
 

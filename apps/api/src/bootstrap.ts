@@ -16,6 +16,7 @@ import { seedReservedNames } from "./db/seed.ts";
 import { type Clock, systemClock } from "./lib/clock.ts";
 import type { Logger } from "./lib/logger.ts";
 import { HOUSEKEEPING_INTERVAL_MS, runHousekeeping } from "./modules/housekeeping.ts";
+import { DANGLING_SCAN_INTERVAL_MS, scanDanglingCnames } from "./modules/takeover/dangling.ts";
 import { asProviderError } from "./sync/errors.ts";
 import { EventBus } from "./sync/events-bus.ts";
 import type { DnsProvider } from "./sync/provider-port.ts";
@@ -173,6 +174,11 @@ export class Scheduler {
     }
     this.#every(HOUSEKEEPING_INTERVAL_MS, () => runHousekeeping(deps));
     this.#once(60_000, () => runHousekeeping(deps));
+    // 接管偵測查的是公開 DNS：memory provider 的紀錄不在公開 DNS 上，一定全部 NXDOMAIN，不跑
+    if (deps.config.DNS_PROVIDER === "cloudflare") {
+      this.#every(DANGLING_SCAN_INTERVAL_MS, () => scanDanglingCnames(deps));
+      this.#once(5 * 60_000, () => scanDanglingCnames(deps));
+    }
   }
 
   #every(ms: number, work: () => Promise<unknown>) {

@@ -31,6 +31,22 @@ jobs:
       - run: pnpm -r test
       - run: pnpm -r build
 
+  # Known vulnerabilities in production dependencies (high and critical). Reads only the
+  # lockfile, so it runs in parallel with the checks job. Actions are pinned by commit SHA.
+  audit:
+    name: Dependency audit (prod, high+)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+      - run: pnpm audit --prod --audit-level high
+
   # Owned by WP-A: api tests against PostgreSQL 18 (production version) and the api image.
   api:
     name: api (postgres 18, image)
