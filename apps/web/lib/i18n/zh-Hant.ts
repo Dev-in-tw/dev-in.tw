@@ -91,6 +91,7 @@ export const zhHant = {
     REGISTRATION_CLOSED: "目前暫停開放申請。",
     TURNSTILE_FAILED: "人機驗證失敗，請再試一次。",
     CONFIRMATION_MISMATCH: "確認文字不符。",
+    CONSENT_REQUIRED: "服務條款或隱私權政策已更新，請重新整理頁面，閱讀並同意最新版本後再試一次。",
     NAME_INVALID: "名稱格式不正確。",
     NAME_RESERVED: "這是保留名稱。",
     NAME_TAKEN: "這個名稱剛剛被別人申請走了。",

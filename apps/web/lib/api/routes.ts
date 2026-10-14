@@ -28,6 +28,8 @@ export const routes = {
   listSessions: ["GET", "/me/sessions"],
   revokeSession: ["DELETE", "/me/sessions/{sessionId}"],
   revokeOtherSessions: ["POST", "/me/sessions/revoke-others"],
+  acceptLegal: ["POST", "/me/consent"],
+  exportMyData: ["GET", "/me/export"],
   listMyActivity: ["GET", "/me/activity"],
   events: ["GET", "/events"],
   listSubdomains: ["GET", "/subdomains"],
@@ -65,6 +67,7 @@ export const routes = {
   adminAuditLog: ["GET", "/admin/audit-logs"],
   adminZone: ["GET", "/admin/zone"],
   adminReconcile: ["POST", "/admin/zone/reconcile"],
+  adminRetrySyncJob: ["POST", "/admin/zone/jobs/{jobId}/retry"],
   adminGetSettings: ["GET", "/admin/settings"],
   adminUpdateSettings: ["PATCH", "/admin/settings"],
 } as const satisfies { [N in EndpointName]: Route<N> };
@@ -81,4 +84,5 @@ export const NO_BODY = new Set<EndpointName>([
   "events",
   "adminRemoveReserved",
   "adminReconcile",
+  "adminRetrySyncJob",
 ]);

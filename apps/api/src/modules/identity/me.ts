@@ -1,4 +1,4 @@
-import type { Me, Session } from "@dit/contract";
+import { isCurrentConsent, type Me, type Session } from "@dit/contract";
 import { and, count, desc, eq, gt, isNull, max } from "drizzle-orm";
 import type { Actor, Deps } from "../../context.ts";
 import {
@@ -16,11 +16,12 @@ import { writeAudit } from "../audit/service.ts";
 import { iso } from "../dto.ts";
 import { countOwnedSubdomains, userLimits } from "../quota.ts";
 import { loadOwnedSubdomain, markReleasing } from "../subdomains/service.ts";
+import { consentDto, latestConsent } from "./consent.ts";
 import { revokeSessionById, revokeUserSessions } from "./sessions.ts";
 
 export async function getMe(deps: Deps, user: UserRow): Promise<Me> {
   const limits = userLimits(user, deps.config);
-  const [used, [incoming]] = await Promise.all([
+  const [used, [incoming], consent] = await Promise.all([
     countOwnedSubdomains(deps.db, user.id),
     deps.db
       .select({ n: count() })
@@ -32,6 +33,7 @@ export async function getMe(deps: Deps, user: UserRow): Promise<Me> {
           gt(transfers.expiresAt, deps.clock.now()),
         ),
       ),
+    latestConsent(deps.db, user.id),
   ]);
   return {
     id: user.id,
@@ -45,6 +47,8 @@ export async function getMe(deps: Deps, user: UserRow): Promise<Me> {
     quota: { subdomains: { used, limit: limits.subdomains }, recordsPerSubdomain: limits.records },
     incomingTransfers: incoming?.n ?? 0,
     createdAt: iso(user.createdAt),
+    consent: consent ? consentDto(consent) : null,
+    consentRequired: !isCurrentConsent(consent),
   };
 }
 

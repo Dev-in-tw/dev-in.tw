@@ -106,6 +106,12 @@ describe.skipIf(!pgAvailable)("contract consistency", () => {
     await alice("updateMe", { body: { displayName: "Alice" } });
     await alice("listSessions");
     await alice("listMyActivity", { query: { limit: 10 } });
+    expect(me.consentRequired).toBe(false);
+    await alice("acceptLegal", { body: requests.acceptLegal });
+    await expectCode(
+      alice("acceptLegal", { body: { termsVersion: "0.1", privacyVersion: "0.1" } }),
+      "CONSENT_REQUIRED",
+    );
 
     const body = {
       name: "alice-blog",
@@ -297,6 +303,7 @@ describe.skipIf(!pgAvailable)("contract consistency", () => {
     await admin("adminAuditLog", { query: { action: "subdomain.create" } });
     await admin("adminZone");
     await admin("adminReconcile", { query: {} });
+    await expectCode(admin("adminRetrySyncJob", { params: { jobId: "999999" } }), "NOT_FOUND");
     await Promise.all([...t.deps.runtime.background]);
     await admin("adminGetSettings");
     await admin("adminUpdateSettings", { body: { reviewMode: "risk" } });
@@ -312,6 +319,8 @@ describe.skipIf(!pgAvailable)("contract consistency", () => {
     await alice("revokeOtherSessions");
     await expectCode(contractClient(t, second)("getMe"), "UNAUTHENTICATED");
     await alice("events");
+    const exported = await alice("exportMyData");
+    expect(exported.account.githubLogin).toBe("alice");
     await expectCode(
       alice("releaseSubdomain", { params: { name: "alice-blog" }, body: { confirm: "wrong" } }),
       "CONFIRMATION_MISMATCH",

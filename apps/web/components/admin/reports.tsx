@@ -84,9 +84,16 @@ export function ReportsQueue() {
                     {formatDateTime(r.createdAt)}
                   </span>
                 </div>
-                <p className="mt-3 text-sm whitespace-pre-wrap">{r.details}</p>
+                {r.redactedAt ? (
+                  <p className="mt-3 text-sm text-ink-muted" data-testid="report-redacted">
+                    結案已滿保存期限，說明內容、聯絡 email 與檢舉人資料已於{" "}
+                    {formatDateTime(r.redactedAt)} 清除。
+                  </p>
+                ) : (
+                  <p className="mt-3 text-sm whitespace-pre-wrap">{r.details}</p>
+                )}
                 <p className="zone mt-2 text-xs text-ink-muted">
-                  聯絡：{r.contactEmail ?? "未提供"}
+                  聯絡：{r.redactedAt ? "已清除" : (r.contactEmail ?? "未提供")}
                   {r.handledBy
                     ? ` · 由 @${r.handledBy.githubLogin} 處理：${r.resolutionNote ?? ""}`
                     : ""}

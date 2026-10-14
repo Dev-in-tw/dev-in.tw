@@ -29,6 +29,7 @@ import {
   type Transfer,
 } from "@dit/contract";
 import { ROOT_DOMAIN, responses } from "@dit/contract/fixtures";
+import { CURRENT_LEGAL_VERSIONS, isCurrentConsent } from "@dit/contract/legal";
 import { PRESETS, planPreset as planPresetRules } from "@dit/dns";
 import { type Context, Hono } from "hono";
 import { streamSSE } from "hono/streaming";
@@ -273,6 +274,8 @@ function meOut(u: MockUser, origin: string): Me {
     incomingTransfers: state.transfers.filter((t) => t.toId === u.id && t.status === "pending")
       .length,
     createdAt: u.createdAt,
+    consent: u.consent,
+    consentRequired: !isCurrentConsent(u.consent),
   };
 }
 
@@ -514,6 +517,82 @@ const handlers: { [N in EndpointName]: Handler<N> } = {
     state.sessions = state.sessions.filter((s) => s.userId !== u.id || s.id === ctx.session?.id);
     return ctx.c.body(null, 204);
   },
+  acceptLegal: (ctx) => {
+    const u = me(ctx);
+    if (!isCurrentConsent(ctx.body)) fail("CONSENT_REQUIRED");
+    u.consent = { ...CURRENT_LEGAL_VERSIONS, acceptedAt: now() };
+    audit("legal.accept", u, { type: "user", id: u.id, label: u.githubLogin }, { ...ctx.body });
+    return { body: { ...u.consent } };
+  },
+  exportMyData: (ctx) => {
+    const u = me(ctx);
+    const owned = state.subdomains.filter((s) => s.ownerId === u.id);
+    return {
+      body: {
+        format: "dev-in.tw/user-data-export@1",
+        generatedAt: now(),
+        account: {
+          id: u.id,
+          githubId: u.githubId,
+          githubLogin: u.githubLogin,
+          displayName: u.displayName,
+          avatarUrl: avatarUrl(u.githubLogin, ctx.origin),
+          email: u.email,
+          githubCreatedAt: u.githubCreatedAt,
+          role: u.role,
+          status: u.status,
+          suspendedReason: u.suspendedReason,
+          createdAt: u.createdAt,
+          lastLoginAt: u.lastLoginAt,
+        },
+        subdomains: owned.map(subOut),
+        records: owned.flatMap((s) =>
+          (state.records.get(s.name) ?? []).map((r) => ({ ...r, subdomain: s.name })),
+        ),
+        activity: state.audit
+          .filter((e) => e.actorId === u.id)
+          .map((e) => ({
+            id: e.id,
+            action: e.action,
+            actorType: e.actorType,
+            target: { ...e.target },
+            metadata: { ...e.metadata },
+            ip: null,
+            createdAt: e.createdAt,
+          })),
+        sessions: state.sessions
+          .filter((s) => s.userId === u.id)
+          .map((s) => ({
+            id: s.id,
+            userAgent: s.userAgent,
+            ip: null,
+            createdAt: s.createdAt,
+            lastSeenAt: s.lastSeenAt,
+            idleExpiresAt: s.lastSeenAt,
+            absoluteExpiresAt: s.lastSeenAt,
+            revokedAt: null,
+          })),
+        transfers: state.transfers
+          .filter((t) => t.fromId === u.id || t.toId === u.id)
+          .map((t) => ({
+            id: t.id,
+            subdomain: t.subdomain,
+            direction: t.fromId === u.id ? ("outgoing" as const) : ("incoming" as const),
+            counterpart: findUser(t.fromId === u.id ? t.toId : t.fromId)?.githubLogin ?? null,
+            status: t.status,
+            keepRecords: t.keepRecords,
+            createdAt: t.createdAt,
+            expiresAt: t.expiresAt,
+            resolvedAt: t.resolvedAt,
+          })),
+        consents: u.consent ? [{ ...u.consent, context: "login" as const }] : [],
+        reports: [],
+      },
+      headers: new Headers({
+        "content-disposition": `attachment; filename="dev-in-tw-${u.githubLogin.toLowerCase()}.json"`,
+      }),
+    };
+  },
   listMyActivity: (ctx) => {
     const u = me(ctx);
     const items = state.audit
@@ -569,6 +648,16 @@ const handlers: { [N in EndpointName]: Handler<N> } = {
       status: 201,
       body: idempotent(ctx.c.req.header("idempotency-key"), `sub:${u.id}`, body, () => {
         if (!state.settings.registrationOpen) fail("REGISTRATION_CLOSED", "目前暫停開放申請");
+        if (body.termsVersion !== undefined || body.privacyVersion !== undefined) {
+          const versions = {
+            termsVersion: body.termsVersion ?? "",
+            privacyVersion: body.privacyVersion ?? "",
+          };
+          if (!isCurrentConsent(versions)) fail("CONSENT_REQUIRED");
+          u.consent = { ...CURRENT_LEGAL_VERSIONS, acceptedAt: now() };
+        } else if (!isCurrentConsent(u.consent)) {
+          fail("CONSENT_REQUIRED");
+        }
         if (body.turnstileToken === "fail") fail("TURNSTILE_FAILED", "人機驗證失敗，請再試一次");
         const check = availability(body.name, u);
         if (check.status === "invalid") fail("NAME_INVALID", check.reason);
@@ -1045,9 +1134,16 @@ const handlers: { [N in EndpointName]: Handler<N> } = {
       ...responses.adminZone,
       usage: { used: zoneUsed(), limit: LIMITS.zoneRecords },
       drift: responses.adminZone.drift.map((d) => ({ ...d })),
-      deadJobs: responses.adminZone.deadJobs.map((d) => ({ ...d })),
+      deadJobs: state.deadJobs.map((d) => ({ ...d })),
     },
   }),
+  adminRetrySyncJob: (ctx) => {
+    const id = Number(ctx.params.jobId);
+    if (!state.deadJobs.some((j) => j.id === id)) fail("NOT_FOUND", "找不到這個 dead 工作");
+    state.deadJobs = state.deadJobs.filter((j) => j.id !== id);
+    audit("sync_job.retry", ctx.user, { type: "sync_job", id: String(id), label: `#${id}` });
+    return ctx.c.body(null, 204);
+  },
   adminReconcile: (ctx) => {
     audit(
       "zone.reconcile",
@@ -1160,6 +1256,8 @@ function loginAs(login: string, role: "user" | "admin", ageDays: number): MockUs
     createdAt: at,
     lastLoginAt: at,
     quotaOverride: null,
+    // dev 登入與假的 GitHub 授權頁都經過登入頁的同意說明，視同首次登入時同意目前版本
+    consent: { ...CURRENT_LEGAL_VERSIONS, acceptedAt: at },
   };
   state.users.push(user);
   return user;
@@ -1288,6 +1386,16 @@ export function createMockApp(): Hono {
       state.settings.registrationOpen = body.registrationOpen;
     return c.json(state.config);
   });
+  // 測試用：把某個使用者的同意紀錄改成舊版（模擬條款改版）或清掉（從未同意）
+  app.post("/api/__mock/consent", async (c) => {
+    const body = (await c.req.json()) as { login: string; stale?: boolean };
+    const u = findUserByLogin(body.login);
+    if (!u) return c.json({ ok: false }, 404);
+    u.consent = body.stale
+      ? { termsVersion: "0.9", privacyVersion: "0.9", acceptedAt: "2026-01-01T00:00:00.000Z" }
+      : null;
+    return c.json({ ok: true });
+  });
   app.get("/api/__mock/avatar/:login", (c) => {
     const login = c.req.param("login");
     let h = 0;
@@ -1361,7 +1469,11 @@ ${option("alice", "以 alice 授權（一般使用者）")}${option("HACO8888", 
             return problemResponse(c, problemBody("INTERNAL", instance, "mock 回應不符合合約"));
           }
         }
-        return c.json(out.body as object, (out.status ?? ep.status) as 200);
+        return c.json(
+          out.body as object,
+          (out.status ?? ep.status) as 200,
+          out.headers ? Object.fromEntries(out.headers) : undefined,
+        );
       } catch (error) {
         if (error instanceof MockProblem) {
           return problemResponse(c, problemBody(error.code, instance, error.detail, error.errors));

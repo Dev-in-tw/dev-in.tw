@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { CommandPaletteHost } from "@/components/command/host.tsx";
 import { MeProvider } from "@/lib/me.tsx";
 import { AppClientProviders } from "./client-providers.tsx";
+import { ConsentGate } from "./consent-gate.tsx";
 import { AppNav, MobileTabs } from "./nav.tsx";
 
 export function AppShell({ me, children }: { me: Me; children: ReactNode }) {
@@ -17,6 +18,7 @@ export function AppShell({ me, children }: { me: Me; children: ReactNode }) {
         </div>
         <MobileTabs />
         <CommandPaletteHost />
+        <ConsentGate />
       </AppClientProviders>
     </MeProvider>
   );

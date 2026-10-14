@@ -9,6 +9,7 @@ import { wakeWorker } from "../../sync/events-bus.ts";
 import { enqueue } from "../../sync/queue.ts";
 import { writeAudit } from "../audit/service.ts";
 import { subdomainDto } from "../dto.ts";
+import { checkSubdomainConsent, recordConsent } from "../identity/consent.ts";
 import { decideName } from "../naming/availability.ts";
 import { countOwnedSubdomains, recordCounts, userLimits } from "../quota.ts";
 import { getSetting } from "../settings.ts";
@@ -114,6 +115,10 @@ export async function createSubdomain(
   if (decision.status !== "available" && decision.status !== "review") {
     throw new AppError(NAME_ERRORS[decision.status], decision.reason);
   }
+  const recordAgreement = await checkSubdomainConsent(deps.db, user, {
+    termsVersion: body.termsVersion,
+    privacyVersion: body.privacyVersion,
+  });
   if (!(await deps.turnstile.verify(body.turnstileToken, actor.ip))) {
     throw new AppError("TURNSTILE_FAILED", "人機驗證失敗，請重新驗證");
   }
@@ -141,12 +146,19 @@ export async function createSubdomain(
       .onConflictDoNothing({ target: subdomains.name })
       .returning();
     if (!created) throw new AppError("NAME_TAKEN", "這個名稱已經有人使用");
+    if (recordAgreement) await recordConsent(tx, user.id, "subdomain_create", now);
     await writeAudit(tx, actor, {
       action: "subdomain.create",
       targetType: "subdomain",
       targetId: created.id,
       targetLabel: `${created.name}.${deps.config.ROOT_DOMAIN}`,
-      metadata: { status: created.status, reviewReasons: created.reviewReasons },
+      metadata: {
+        status: created.status,
+        reviewReasons: created.reviewReasons,
+        ...(recordAgreement
+          ? { termsVersion: body.termsVersion, privacyVersion: body.privacyVersion }
+          : {}),
+      },
     });
     return created;
   });

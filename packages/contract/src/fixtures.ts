@@ -27,8 +27,9 @@ import type {
   SubdomainStatus,
   SyncStatus,
   Transfer,
+  UserDataExport,
 } from "./index.ts";
-import { problemType } from "./index.ts";
+import { CURRENT_LEGAL_VERSIONS, DATA_EXPORT_FORMAT, problemType } from "./index.ts";
 
 export const ROOT_DOMAIN = "dev-in.tw";
 
@@ -250,6 +251,8 @@ const me = {
   quota: { subdomains: { used: 1, limit: 2 }, recordsPerSubdomain: 10 },
   incomingTransfers: 0,
   createdAt: T0,
+  consent: { ...CURRENT_LEGAL_VERSIONS, acceptedAt: T0 },
+  consentRequired: false,
 } as const satisfies Me;
 
 const transfer = {
@@ -410,6 +413,66 @@ type JsonEndpoint = {
   [N in EndpointName]: Endpoints[N]["response"] extends null ? never : N;
 }[EndpointName];
 
+/** GET /me/export 的範例（alice） */
+const dataExport = {
+  format: DATA_EXPORT_FORMAT,
+  generatedAt: T1,
+  account: {
+    id: ids.alice,
+    githubId: 1234567,
+    githubLogin: "alice",
+    displayName: "Alice Chen",
+    avatarUrl: users.alice.avatarUrl,
+    email: "alice@example.com",
+    githubCreatedAt: "2019-03-02T10:00:00.000Z",
+    role: "user",
+    status: "active",
+    suspendedReason: null,
+    createdAt: T0,
+    lastLoginAt: T1,
+  },
+  subdomains: [subdomainBase],
+  records: [{ ...records.CNAME, subdomain: "alice" }],
+  activity: [
+    {
+      id: ids.audit2,
+      action: "record.create",
+      actorType: "user",
+      target: { type: "record", id: ids.recordCNAME, label: `www.alice.${ROOT_DOMAIN}` },
+      metadata: { type: "CNAME", target: "alice.github.io" },
+      ip: "203.0.113.24",
+      createdAt: T1,
+    },
+  ],
+  sessions: [
+    {
+      id: "0199e2a1-7c00-7a00-8000-00000000cafe",
+      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+      ip: "203.0.113.24",
+      createdAt: T0,
+      lastSeenAt: T1,
+      idleExpiresAt: "2026-10-28T08:00:00.000Z",
+      absoluteExpiresAt: "2026-11-30T08:00:00.000Z",
+      revokedAt: null,
+    },
+  ],
+  transfers: [
+    {
+      id: ids.transfer,
+      subdomain: "alice",
+      direction: "outgoing",
+      counterpart: "bob-dev",
+      status: "pending",
+      keepRecords: true,
+      createdAt: T1,
+      expiresAt: "2026-10-21T08:00:00.000Z",
+      resolvedAt: null,
+    },
+  ],
+  consents: [{ ...CURRENT_LEGAL_VERSIONS, context: "login", acceptedAt: T0 }],
+  reports: [],
+} as const satisfies UserDataExport;
+
 export const responses = {
   getMeta: {
     rootDomain: ROOT_DOMAIN,
@@ -439,6 +502,8 @@ export const responses = {
   createReport: { id: ids.report, createdAt: T1 },
   getMe: me,
   updateMe: { ...me, displayName: "Alice" },
+  acceptLegal: { ...CURRENT_LEGAL_VERSIONS, acceptedAt: T1 },
+  exportMyData: dataExport,
   listSessions: {
     items: [
       {
@@ -602,6 +667,22 @@ export const responses = {
         resolutionNote: null,
         createdAt: T1,
         resolvedAt: null,
+        redactedAt: null,
+      },
+      {
+        id: "0199e2a4-3000-7000-a000-000000000002",
+        subdomain: "old-spam",
+        subdomainExists: false,
+        category: "spam",
+        details: "",
+        contactEmail: null,
+        reporter: null,
+        status: "dismissed",
+        handledBy: users.admin,
+        resolutionNote: "查無違規",
+        createdAt: "2025-09-01T08:00:00.000Z",
+        resolvedAt: "2025-09-02T08:00:00.000Z",
+        redactedAt: T1,
       },
     ],
     nextCursor: null,
@@ -738,11 +819,13 @@ export const requests = {
   devLogin: { githubLogin: "alice", role: "user", githubAgeDays: 365 },
   updateMe: { displayName: "Alice" },
   deleteMe: { confirm: "alice" },
+  acceptLegal: CURRENT_LEGAL_VERSIONS,
   createSubdomain: {
     name: "alice",
     description: "Alice 的個人網站與部落格",
     acceptTerms: true,
     turnstileToken: "XXXX.DUMMY.TOKEN.XXXX",
+    ...CURRENT_LEGAL_VERSIONS,
   },
   updateSubdomain: { showInDirectory: true },
   releaseSubdomain: { confirm: "alice" },
