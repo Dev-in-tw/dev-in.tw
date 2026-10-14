@@ -24,6 +24,12 @@ export const CreateSubdomainBody = z.object({
   description: z.string().max(280).default(""),
   acceptTerms: z.literal(true),
   turnstileToken: z.string().min(1),
+  /**
+   * 合約新增（v1.2）：申請表單上顯示、使用者勾選同意的版本。帶了就必須等於目前版本；沒帶時，
+   * 使用者最近一次的同意紀錄必須是目前版本，否則回 CONSENT_REQUIRED。
+   */
+  termsVersion: z.string().max(20).optional(),
+  privacyVersion: z.string().max(20).optional(),
 });
 export type CreateSubdomainBody = z.infer<typeof CreateSubdomainBody>;
 export const UpdateSubdomainBody = z

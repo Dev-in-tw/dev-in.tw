@@ -15,6 +15,7 @@ import {
   ReservedName,
   ZoneReport,
 } from "./admin.ts";
+import { UserDataExport } from "./data-export.ts";
 import { DnsRecord, Propagation, PropagationQuery, RecordInput, RecordList } from "./dns.ts";
 import type { ErrorCode } from "./errors.ts";
 import { Availability } from "./naming.ts";
@@ -30,7 +31,16 @@ import {
   UpdateSubdomainBody,
 } from "./subdomain.ts";
 import { CreateTransferBody, Transfer, TransferList } from "./transfer.ts";
-import { DeleteMeBody, Me, Role, Session, UpdateMeBody, UserStatus } from "./user.ts";
+import {
+  AcceptLegalBody,
+  DeleteMeBody,
+  LegalConsent,
+  Me,
+  Role,
+  Session,
+  UpdateMeBody,
+  UserStatus,
+} from "./user.ts";
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 export type AuthLevel = "public" | "user" | "admin";
@@ -58,6 +68,7 @@ const SessionParams = z.object({ sessionId: z.string() });
 const UserParams = z.object({ userId: Uuid });
 const ReportParams = z.object({ reportId: Uuid });
 const ReservedParams = z.object({ name: z.string() });
+const SyncJobParams = z.object({ jobId: z.string().regex(/^\d{1,15}$/) });
 const AvailabilityParams = z.object({ name: z.string().max(80) }); // 允許不合法的輸入，由回應的 status=invalid 說明原因
 
 const OWNER_ERRORS = ["UNAUTHENTICATED", "NOT_FOUND", "ACCOUNT_SUSPENDED"] as const;
@@ -135,7 +146,12 @@ export const endpoints = {
     method: "GET",
     path: "/auth/github/start",
     auth: "public",
-    query: z.object({ redirect: z.string().max(200).optional() }),
+    // 合約新增（v1.2）：登入頁顯示的條款版本。首次登入且版本等於目前版本時，記錄為同意紀錄
+    query: z.object({
+      redirect: z.string().max(200).optional(),
+      termsVersion: z.string().max(20).optional(),
+      privacyVersion: z.string().max(20).optional(),
+    }),
     status: 302,
     response: null,
     errors: [],
@@ -227,6 +243,25 @@ export const endpoints = {
     response: null,
     errors: WRITE_ERRORS,
   },
+  // 合約新增（v1.2）：同意目前版本的服務條款與隱私權政策（條款改版後的重新同意）
+  acceptLegal: {
+    method: "POST",
+    path: "/me/consent",
+    auth: "user",
+    body: AcceptLegalBody,
+    status: 200,
+    response: LegalConsent,
+    errors: [...WRITE_ERRORS, "CONSENT_REQUIRED"],
+  },
+  // 合約新增（v1.2）：下載自己的資料（JSON，Content-Disposition: attachment），每人每小時 3 次
+  exportMyData: {
+    method: "GET",
+    path: "/me/export",
+    auth: "user",
+    status: 200,
+    response: UserDataExport,
+    errors: ["UNAUTHENTICATED", "RATE_LIMITED"],
+  },
   listMyActivity: {
     method: "GET",
     path: "/me/activity",
@@ -273,6 +308,7 @@ export const endpoints = {
       "SUBDOMAIN_QUOTA_EXCEEDED",
       "ZONE_CAPACITY_EXHAUSTED",
       "IDEMPOTENCY_KEY_REUSED",
+      "CONSENT_REQUIRED",
     ],
   },
   getSubdomain: {
@@ -631,6 +667,16 @@ export const endpoints = {
     auth: "admin",
     query: z.object({ force: z.enum(["true", "false"]).default("false") }), // force=true 才能越過大量刪除煞車
     status: 202,
+    response: null,
+    errors: WRITE_ERRORS,
+  },
+  // 合約新增（v1.2）：把 dead 的同步工作重新排入（attempts 歸零）。卡在 releasing 的子網域靠它重新清除
+  adminRetrySyncJob: {
+    method: "POST",
+    path: "/admin/zone/jobs/{jobId}/retry",
+    auth: "admin",
+    params: SyncJobParams,
+    status: 204,
     response: null,
     errors: WRITE_ERRORS,
   },

@@ -1,13 +1,14 @@
 {
   "name": "@dit/contract",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "description": "Dev-in.tw API contract: zod schemas, endpoint map, error codes, typed client and fixtures",
   "license": "AGPL-3.0-only",
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./fixtures": "./src/fixtures.ts"
+    "./fixtures": "./src/fixtures.ts",
+    "./legal": "./src/legal.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

@@ -56,6 +56,8 @@ export const AdminReport = z.object({
   resolutionNote: z.string().nullable(),
   createdAt: IsoDateTime,
   resolvedAt: IsoDateTime.nullable(),
+  /** 合約新增（v1.2）：結案滿保存期限後，聯絡 email、IP 雜湊與說明內容已清除的時間 */
+  redactedAt: IsoDateTime.nullable().optional(),
 });
 export type AdminReport = z.infer<typeof AdminReport>;
 export const AdminResolveReportBody = z.object({
