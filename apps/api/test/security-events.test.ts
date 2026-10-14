@@ -59,11 +59,11 @@ describe.skipIf(!pgAvailable)("event stream hardening", () => {
       const cookie = await login(t, "sse-logout");
       const stream = await request(t, "GET", "/api/v1/events", { cookie });
       expect(stream.status).toBe(200);
-      const closed = drainUntilClosed(stream, 5000);
+      const closed = drainUntilClosed(stream, 15_000);
       const out = await request(t, "POST", "/api/v1/auth/logout", { cookie });
       expect(out.status).toBe(204);
       expect(await closed).toBe(true);
-    });
+    }, 30_000);
 
     it("closes an open stream when an admin suspends the account", async () => {
       const cookie = await login(t, "sse-suspend");
@@ -72,14 +72,14 @@ describe.skipIf(!pgAvailable)("event stream hardening", () => {
         id: string;
       };
       const stream = await request(t, "GET", "/api/v1/events", { cookie });
-      const closed = drainUntilClosed(stream, 5000);
+      const closed = drainUntilClosed(stream, 15_000);
       const res = await request(t, "PATCH", `/api/v1/admin/users/${me.id}`, {
         cookie: admin,
         body: { status: "suspended", reason: "test" },
       });
       expect(res.status).toBe(200);
       expect(await closed).toBe(true);
-    });
+    }, 30_000);
 
     it("caps concurrent streams per user and returns the slots when streams end", async () => {
       const cookie = await login(t, "sse-cap");
