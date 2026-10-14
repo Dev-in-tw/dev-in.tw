@@ -454,6 +454,21 @@ describe.skipIf(!pgAvailable)("security", () => {
       expect(res.status).toBe(429);
     });
 
+    it("ignores a forged CF-Connecting-IP without a Cloudflare proxy (TRUST_CLOUDFLARE=false)", async () => {
+      expect(t.config.TRUST_CLOUDFLARE).toBe(false);
+      for (let i = 0; i < 25; i++) {
+        await request(t, "GET", `/api/v1/availability/cf-${i}`, {
+          headers: { "CF-Connecting-IP": `5.6.7.${i}` },
+          ip: "203.0.113.30",
+        });
+      }
+      const res = await request(t, "GET", "/api/v1/availability/cf-final", {
+        headers: { "CF-Connecting-IP": "5.6.7.200" },
+        ip: "203.0.113.30",
+      });
+      expect(res.status).toBe(429);
+    });
+
     it("limits record writes per user (10 per minute)", async () => {
       const cookie = await login(t, "rl-writer");
       await claim(t, cookie, "rl-writer");

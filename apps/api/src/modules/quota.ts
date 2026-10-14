@@ -47,13 +47,23 @@ export async function recordCounts(
   return new Map(rows.map((r) => [r.id, r.n]));
 }
 
+/** zone 容量的單位：Lazco DNS 以 RRset（同名同類型）計算，其他 provider 以紀錄計算 */
+export const usageUnit = (config: Pick<Config, "DNS_PROVIDER">): "record" | "rrset" =>
+  config.DNS_PROVIDER === "lazco" ? "rrset" : "record";
+
 /**
  * zone 使用量 = provider 上沒有 dit: 標記的紀錄（系統紀錄等，取自最近一次對帳的快照）
  * + DB 裡所有受管紀錄。可用上限 = ZONE_RECORD_LIMIT − ZONE_HEADROOM（PLAN §3.1）。
+ * Lazco DNS 的單位是 RRset：受管的部分以 (子網域, 名稱, 類型) 去重，ZONE_RECORD_LIMIT 是 RRset 上限
+ * （PLAN §3.8.1）。同名同類型的第二筆紀錄不多佔容量。
  */
 export async function zoneUsage(ex: Executor, config: Config) {
   const snapshot = await getSetting(ex, "zone_snapshot");
-  const [row] = await ex.execute<{ n: string }>(sql`select count(*) as n from dns_records`);
+  const [row] = await ex.execute<{ n: string }>(
+    usageUnit(config) === "rrset"
+      ? sql`select count(*) as n from (select distinct subdomain_id, name, type from dns_records) t`
+      : sql`select count(*) as n from dns_records`,
+  );
   const managed = Number(row?.n ?? 0);
   const unmanaged = snapshot?.unmanagedCount ?? config.SYSTEM_RECORD_NAMES.length;
   const used = unmanaged + managed;

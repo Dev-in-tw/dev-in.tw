@@ -45,6 +45,7 @@ const PAGE_SIZE = 500;
  */
 export class CloudflareProvider implements DnsProvider {
   readonly kind = "cloudflare" as const;
+  readonly supportsComments = true;
   readonly #client: CloudflareClient;
   readonly #zone: string;
 

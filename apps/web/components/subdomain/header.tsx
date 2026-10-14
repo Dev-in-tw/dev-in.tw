@@ -102,9 +102,7 @@ function StatusBanner({ sub }: { sub: Subdomain }) {
   } else if (sub.status === "suspended") {
     body = (
       <div role="alert" className="rounded-md border border-danger bg-danger-soft p-4 text-sm">
-        <p className="font-medium text-danger">
-          已停權：DNS 紀錄已從 Cloudflare 撤下，但仍保留在系統中
-        </p>
+        <p className="font-medium text-danger">已停權：DNS 紀錄已撤下，但仍保留在系統中</p>
         <p className="mt-1">
           {sub.suspendedReason ?? "違反使用規範"}。如有疑問請寫信到 abuse@dev-in.tw。
         </p>

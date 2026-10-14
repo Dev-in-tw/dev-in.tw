@@ -29,11 +29,18 @@ export interface ReconcileReport {
   blockedReason: string | null;
 }
 
+/** 上一次啟動時連到的 DNS provider；換 provider 或 zone 時，provider_record_id 要清掉 */
+export interface ProviderIdentity {
+  kind: string;
+  zoneId: string | null;
+}
+
 export interface SettingsShape {
   registration_open: boolean;
   review_mode: ReviewMode;
   zone_snapshot: ZoneSnapshot | null;
   reconcile_report: ReconcileReport | null;
+  dns_provider: ProviderIdentity | null;
 }
 
 const DEFAULTS: SettingsShape = {
@@ -41,6 +48,7 @@ const DEFAULTS: SettingsShape = {
   review_mode: "risk",
   zone_snapshot: null,
   reconcile_report: null,
+  dns_provider: null,
 };
 
 export async function getSettings<K extends keyof SettingsShape>(

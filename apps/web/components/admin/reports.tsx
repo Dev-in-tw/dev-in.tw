@@ -129,9 +129,7 @@ export function ReportsQueue() {
           action?.kind === "actioned" ? `停權 ${action.report.subdomain}.dev-in.tw` : "駁回檢舉"
         }
         description={
-          action?.kind === "actioned"
-            ? "Cloudflare 上的紀錄會立即撤下，資料庫保留，可以再解除。"
-            : undefined
+          action?.kind === "actioned" ? "DNS 上的紀錄會撤下，資料庫保留，可以再解除。" : undefined
         }
         confirmLabel={action?.kind === "actioned" ? "停權並結案" : "駁回"}
         danger={action?.kind === "actioned"}

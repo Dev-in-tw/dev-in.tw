@@ -11,6 +11,7 @@ import { type AppOptions, createApp } from "../../src/http/app.ts";
 import { RateLimiter } from "../../src/http/middleware/rate-limit.ts";
 import { ManualClock } from "../../src/lib/clock.ts";
 import { createLogger, silentLogger } from "../../src/lib/logger.ts";
+import type { DnsProvider } from "../../src/sync/provider-port.ts";
 import { SyncWorker } from "../../src/sync/worker.ts";
 import { createTestDatabase } from "./db.ts";
 
@@ -72,6 +73,7 @@ export interface TestContext {
   config: Config;
   deps: Deps;
   app: ReturnType<typeof createApp>;
+  /** 預設的 memory provider；opts.provider 換掉時它不會被使用（請改用 deps.provider） */
   provider: MemoryDnsProvider;
   clock: ManualClock;
   notifier: DiscordNotifier;
@@ -88,11 +90,19 @@ export async function setupTestApp(
     seed?: boolean;
     app?: AppOptions;
     logger?: ReturnType<typeof createLogger>;
+    /**
+     * 直接覆寫驗證後的設定（例如 DNS_PROVIDER=lazco：正式的設定驗證不允許它和 dev 登入並用，
+     * 但整合測試需要 dev 登入來建立使用者）
+     */
+    config?: Partial<Config>;
+    /** 換掉 DNS provider（例如假 Lazco DNS 的 adapter） */
+    provider?: (ctx: { db: Deps["db"]; clock: ManualClock; config: Config }) => DnsProvider;
+    clockStart?: Date | string;
   } = {},
 ): Promise<TestContext> {
   const database = await createTestDatabase();
-  const config = loadConfig(testEnv(database.url, opts.env));
-  const clock = new ManualClock(new Date());
+  const config = { ...loadConfig(testEnv(database.url, opts.env)), ...opts.config };
+  const clock = new ManualClock(opts.clockStart ?? new Date());
   const provider = new MemoryDnsProvider({
     zoneName: config.ROOT_DOMAIN,
     recordLimit: config.ZONE_RECORD_LIMIT,
@@ -107,7 +117,7 @@ export async function setupTestApp(
   const logger =
     opts.logger ?? (process.env.TEST_LOG ? createLogger(process.env.TEST_LOG) : silentLogger);
   const deps = createDeps(config, database, logger, {
-    provider,
+    provider: opts.provider ? opts.provider({ db: database.db, clock, config }) : provider,
     clock,
     notifier,
     github,

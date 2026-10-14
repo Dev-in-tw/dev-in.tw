@@ -1,6 +1,6 @@
 "use client";
 
-import type { ComponentStatus } from "@dit/contract";
+import type { ComponentStatus, SyncBatching } from "@dit/contract";
 import { useQuery } from "@tanstack/react-query";
 import { CircleAlert, CircleCheck, CircleX } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -13,7 +13,7 @@ import { formatDateTime } from "@/lib/time.ts";
 const NAMES = {
   api: "API",
   database: "資料庫",
-  dns_provider: "DNS 供應商（Cloudflare）",
+  dns_provider: "DNS 供應商",
   sync_worker: "同步 worker",
 } as const;
 const LABEL: Record<ComponentStatus, string> = {
@@ -137,11 +137,28 @@ export function StatusBoard() {
           </div>
         ))}
       </dl>
+      {data.syncQueue.batching ? <BatchingNote batching={data.syncQueue.batching} /> : null}
       <p className="zone text-sm text-ink-muted">
-        最後一次與 Cloudflare 對帳：
+        最後一次與 DNS 供應商對帳：
         {data.lastReconcileAt ? formatDateTime(data.lastReconcileAt) : "尚未執行"}
       </p>
     </div>
+  );
+}
+
+/** DNS 供應商有每日批次上限時（Lazco DNS），變更會聚合成批次寫入 */
+function BatchingNote({ batching }: { batching: SyncBatching }) {
+  const paused = batching.pausedUntil && Date.parse(batching.pausedUntil) > Date.now();
+  return (
+    <p className="text-sm text-ink-muted" data-testid="sync-batching">
+      DNS 變更以批次寫入，約每 {Math.max(1, Math.round(batching.intervalSeconds / 60))}{" "}
+      分鐘一批（今日已用 {batching.batchesToday}／{batching.dailyBudget} 批）。
+      {paused && batching.pausedUntil
+        ? `今日額度已用完，新的變更會在 ${formatDateTime(batching.pausedUntil)} 之後寫入。`
+        : batching.nextBatchAt
+          ? `下一批最早 ${formatDateTime(batching.nextBatchAt)}。`
+          : null}
+    </p>
   );
 }
 

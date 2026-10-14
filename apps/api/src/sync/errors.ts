@@ -4,23 +4,45 @@
  */
 export type ProviderErrorKind = "permanent" | "capacity" | "transient" | "auth" | "not_found";
 
+/** 整批寫入被拒絕時，provider 指出的是哪一個變更（Lazco DNS 422 的 `issues[].index`，已換成 RRset key） */
+export interface ProviderIssue {
+  /** `<fqdn>|<type>`；整批層級的問題（例如 RRset 上限）是 null */
+  key: string | null;
+  code: string;
+  message: string;
+}
+
+export interface ProviderErrorDetails {
+  /**
+   * 有值時代表「這個時間之前不要再試」（Lazco DNS 每日批次上限、限流的 Retry-After）：worker 把工作
+   * 延到這個時間、不計入重試次數，也不把紀錄標成錯誤。
+   */
+  retryAt?: Date;
+  issues?: readonly ProviderIssue[];
+}
+
 export class ProviderError extends Error {
   override name = "ProviderError";
   readonly kind: ProviderErrorKind;
-  /** 例如 "cf:81053"、"http:503"、"timeout" */
+  /** 例如 "cf:81053"、"http:503"、"timeout"、"lazco:DNS_DAILY_CHANGE_LIMIT" */
   readonly providerCode: string;
   readonly httpStatus: number | null;
+  readonly retryAt: Date | null;
+  readonly issues: readonly ProviderIssue[];
 
   constructor(
     kind: ProviderErrorKind,
     providerCode: string,
     message: string,
     httpStatus: number | null = null,
+    details: ProviderErrorDetails = {},
   ) {
     super(message);
     this.kind = kind;
     this.providerCode = providerCode;
     this.httpStatus = httpStatus;
+    this.retryAt = details.retryAt ?? null;
+    this.issues = details.issues ?? [];
   }
 }
 

@@ -17,6 +17,7 @@ type Op = "create" | "replace" | "delete" | "batch" | "list" | "zone";
  */
 export class MemoryDnsProvider implements DnsProvider {
   readonly kind = "memory" as const;
+  readonly supportsComments = true;
   readonly records = new Map<string, ProviderRecord>();
   readonly calls: { op: Op; detail?: string }[] = [];
   readonly #zoneName: string;

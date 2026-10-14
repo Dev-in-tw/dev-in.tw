@@ -765,6 +765,45 @@ export const events = {
   ping: { type: "ping", at: T1 },
 } as const satisfies { [K in ServerEvent["type"]]: ServerEvent & { type: K } };
 
+/**
+ * 批次寫入模式（DNS provider 為 Lazco DNS，contract-v1.3）：pending 的紀錄帶預計生效時間，
+ * `/status` 與 `/admin/zone` 帶批次額度與排程。
+ */
+const batchingState = {
+  intervalSeconds: 1080,
+  nextBatchAt: "2026-10-14T09:18:00.000Z",
+  lastBatchAt: "2026-10-14T09:00:00.000Z",
+  pausedUntil: null,
+  batchesToday: 30,
+  dailyBudget: 80,
+} as const;
+
+export const batching = {
+  record: { ...records.CNAME, syncEta: batchingState.nextBatchAt },
+  event: {
+    ...events["record.sync"],
+    syncStatus: "pending",
+    syncEta: batchingState.nextBatchAt,
+  },
+  getStatus: {
+    ...responses.getStatus,
+    syncQueue: { ...responses.getStatus.syncQueue, batching: batchingState },
+  },
+  adminZone: {
+    ...responses.adminZone,
+    plan: "lazco",
+    usage: { used: 120, limit: 500 },
+    provider: "lazco",
+    usageUnit: "rrset",
+    batching: batchingState,
+  },
+} as const satisfies {
+  record: DnsRecord;
+  event: ServerEvent;
+  getStatus: ResponseOf<"getStatus">;
+  adminZone: ResponseOf<"adminZone">;
+};
+
 /** 錯誤回應範例 */
 export const problems = {
   recordConflict: {

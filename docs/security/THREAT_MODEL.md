@@ -9,7 +9,8 @@
 ## 1. 系統概觀
 
 使用者用 GitHub 登入，免費申請 `<name>.dev-in.tw`，在網頁上管理 A / AAAA / CNAME / TXT / MX / SRV / CAA
-紀錄。PostgreSQL 是期望狀態，sync worker 把它收斂到 Cloudflare 的 `dev-in.tw` zone。
+紀錄。PostgreSQL 是期望狀態，sync worker 把它收斂到 DNS provider 上的 `dev-in.tw` zone：目前是 Cloudflare，
+程式也支援 Lazco 自建 DNS（`DNS_PROVIDER=lazco`，PLAN §3.8.1）。
 
 ```
 瀏覽器 ──HTTPS──▶ [Cloudflare 代理（目前）] ──▶ Traefik ──┬─ dev-in.tw/*      ─▶ web:3000（Next.js）
@@ -17,25 +18,27 @@
 web（RSC）──HTTP（Docker overlay）──▶ api:3001            轉發瀏覽器的 cookie 與 X-Forwarded-For
 api ──▶ PostgreSQL 18（同一個 Dokploy 專案，不對外）
 api ──HTTPS──▶ Cloudflare API（DNS:Edit，限 dev-in.tw zone）
+    或 Lazco Cloud API（api.lazco.tw/v1/dns，限 dev-in.tw zone 的 API token；DNS_PROVIDER=lazco）
 api ──HTTPS──▶ GitHub OAuth / REST、Cloudflare Turnstile、四個固定的 DoH resolver、Discord webhook
 使用者子網域 ──DNS──▶ 使用者自己的主機（任意內容，平台不代管）
 ```
 
-**部署模式**：目前 `dev-in.tw` 在 Cloudflare 代理後面（`TRUST_CLOUDFLARE=true`）；之後可能把 DNS 搬到 Lazco
-自建 DNS，屆時不再有 Cloudflare 代理。所有應用層控制都必須在兩種模式下成立（見 §5）。
+**部署模式**：目前 `dev-in.tw` 在 Cloudflare 代理後面（Dokploy 設 `TRUST_CLOUDFLARE=true`；程式預設是 `false`）；
+之後可能把 DNS 搬到 Lazco 自建 DNS，屆時不再有 Cloudflare 代理，`www`／`api` 由 web 依 Host 轉址。所有應用層控制都必須
+在兩種模式下成立（見 §5）。
 
 ## 2. 資產
 
 | 資產 | 分類 | 位置 | 被破壞時的影響 |
 |---|---|---|---|
-| `dev-in.tw` zone 的完整性（使用者紀錄、系統紀錄 `@`、`www`、`_dmarc`、`_psl`、`mail`） | 關鍵 | Cloudflare（實際）、PostgreSQL（期望） | 全站或大量使用者的網站、信件、憑證被劫持；zone 被清空 |
-| Cloudflare API token | 機密 | Infisical → Dokploy 環境變數 | 同上（可任意改 zone） |
+| `dev-in.tw` zone 的完整性（使用者紀錄、系統紀錄 `@`、`www`、`_dmarc`、`_psl`、`mail`） | 關鍵 | DNS provider（實際）、PostgreSQL（期望與 Lazco 模式的所有權表 `dns_provider_ownership`） | 全站或大量使用者的網站、信件、憑證被劫持；zone 被清空 |
+| Cloudflare API token／Lazco API token（`LAZCO_DNS_TOKEN`，限定 zone） | 機密 | Infisical → Dokploy 環境變數 | 同上（可任意改 zone） |
 | Session token（`__Host-dit_session`） | 機密 | 瀏覽器 cookie；DB 只存 SHA-256 | 冒用使用者；admin session 被盜等於控制整個平台 |
 | `SESSION_SECRET`（簽 OAuth state cookie）、GitHub client secret、Turnstile secret、`REPORT_IP_SALT` | 機密 | Infisical | 偽造登入流程、繞過人機驗證、還原 IP 雜湊 |
 | 使用者個資：GitHub id / login、主要 email、session 的 IP 與 User-Agent、稽核紀錄 IP（90 天）、同意紀錄（版本與時間） | 個資 | PostgreSQL | 個資外洩（PLAN §3.11 與隱私權政策的承諾） |
 | 檢舉內容與聯絡 email | 個資 | PostgreSQL | 檢舉人身分外洩、報復 |
 | 管理功能（停權、核准、保留字、強制對帳） | 高權限 | API `/admin/*` | 惡意停權、釋出他人名稱、繞過大量刪除煞車 |
-| 可用性：API、worker、zone 紀錄配額（1,000 筆）、Cloudflare API 額度 | 營運 | — | 服務中斷、無法申請 |
+| 可用性：API、worker、zone 紀錄配額（Cloudflare 1,000 筆；Lazco 500 個 RRset）、Cloudflare API 額度、Lazco 每日 90 批變更額度 | 營運 | — | 服務中斷、無法申請、變更延到隔天才生效 |
 | 網域信譽 | 營運 | — | 被列入黑名單（Safe Browsing、垃圾信），連帶影響所有使用者 |
 
 ## 3. 信任邊界
@@ -47,7 +50,7 @@ api ──HTTPS──▶ GitHub OAuth / REST、Cloudflare Turnstile、四個固�
 | B3 | 瀏覽器 → API（同源 `/api`） | cookie、JSON body | `__Host-` cookie、CSRF（Origin / Sec-Fetch-Site / JSON）、zod 驗證、32 KiB body 上限、限流 |
 | B4 | 使用者子網域 ↔ `dev-in.tw`（**同一個 site**，PSL 尚未收錄） | cookie、same-site 請求 | `__Host-` 前綴、Origin 必須完全等於 `APP_ORIGIN`、`Sec-Fetch-Site` 不接受 `same-site`、重複 cookie 視為無效 |
 | B5 | API → PostgreSQL | SQL | Drizzle 參數化查詢、交易與 `FOR UPDATE`、DB 不對外 |
-| B6 | API → Cloudflare / GitHub / Turnstile / DoH / Discord | 憑證與查詢 | 固定的主機（沒有使用者指定的 URL）、逾時、錯誤原文不外傳 |
+| B6 | API → Cloudflare 或 Lazco Cloud / GitHub / Turnstile / DoH / Discord | 憑證與查詢 | 固定的主機（沒有使用者指定的 URL）、逾時、錯誤原文不外傳 |
 | B7 | CDN 載入的第三方 JS（`/api/docs` 的 Scalar、Turnstile） | 程式碼 | Scalar 版本固定、跑在 CSP sandbox（opaque origin）；Turnstile 只在 iframe 與 nonce CSP 下載入 |
 | B8 | 建置供應鏈（npm、GitHub Actions、Docker Hub） | 程式碼與映像 | lockfile + `minimumReleaseAge: 4320`、`onlyBuiltDependencies: []`、新 workflow 以 SHA 釘版本、base image 以 digest 釘版本、CodeQL、`pnpm audit` |
 | B9 | 管理員 | 高權限操作 | GitHub numeric id 白名單（每個請求重新比對）、admin 端點對非 admin 回 404、所有寫入寫稽核 |
@@ -76,8 +79,8 @@ api ──HTTPS──▶ GitHub OAuth / REST、Cloudflare Turnstile、四個固�
 | 併發繞過配額、CNAME 排他、轉移狀態 | API | 中 | 子網域與使用者列 `FOR UPDATE`、轉移列鎖定後重新檢查狀態與擁有者 | 已緩解 |
 | DNS 內容指向內網（rebinding、內網探測） | `packages/dns` | 中 | A / AAAA 只允許公網 unicast；CNAME / MX / SRV 不能是 IP、不能指向 `.local`、`.internal`、`.localhost`、`.home.arpa` 等特殊用途網域 | 部分 |
 | 委派或橘雲讓使用者繞過平台控管 | DNS | 高 | 不開放 NS、provider 一律 `proxied=false`（ADR-0007） | 已緩解 |
-| Sync worker 改到系統紀錄或其他人的紀錄 | worker | 關鍵 | 只動有 `dit:<recordId>` 標記的紀錄；`SYSTEM_RECORD_NAMES` 對帳時永遠略過，且無論保留字表如何都不能被申請 | 已緩解 |
-| DB 指錯或還原到舊版本，把 zone 刪光 | reconciler | 關鍵 | 大量刪除煞車（> 10 筆或 > 10%）、只有 admin `force=true` 能放行、啟動時比對 zone 名稱 | 已緩解 |
+| Sync worker 改到系統紀錄或其他人的紀錄 | worker | 關鍵 | 只動有 `dit:<recordId>` 標記的紀錄；`SYSTEM_RECORD_NAMES` 對帳時永遠略過，且無論保留字表如何都不能被申請。Lazco DNS 沒有 comment：所有權存在 `dns_provider_ownership`（寫入前記下）並比對 DB 期望值；批次只移除「批次內工作擁有」的值，外來的值與孤兒一律保留；adapter 層另外拒絕寫入系統 FQDN 與 apex NS | 已緩解 |
+| DB 指錯或還原到舊版本，把 zone 刪光 | reconciler | 關鍵 | 大量刪除煞車（> 10 筆或 > 10%）、只有 admin `force=true` 能放行、啟動時比對 zone 名稱。Lazco 模式下所有權表和 DB 一起還原：備份之後寫入的值變成 unmanaged（只回報、不刪），worker 也不會刪沒有擁有者的值 | 已緩解 |
 | 管理員手動加的 zone 名稱被使用者申請，並替它拿憑證 | 命名 | 中 | 啟動時與**每一輪對帳**都把沒有 `dit:` 標記的 zone 名稱匯入為保留字 | 已緩解 |
 | 同形異義字、品牌仿冒 | 命名 | 中 | 子網域禁止 `--`（含 `xn--`）、品牌保留與近似比對送審；子網域底下的紀錄名稱也不能用 `xn--` | 部分 |
 | 開放轉址（登入後導向） | web / API | 中 | 兩端都只接受站內相對路徑，擋控制字元與反斜線，最後以 URL 解析確認同源 | 已緩解 |
@@ -114,6 +117,7 @@ api ──HTTPS──▶ GitHub OAuth / REST、Cloudflare Turnstile、四個固�
 | 公開健康檢查被當成打 DB 的放大器 | 同一秒內共用一次 DB 查詢 | 已緩解 |
 | 搶註、灌爆 zone 配額 | 每人 2 個子網域、每個 10 筆紀錄、每天 5 次申請、全域容量閘門、Turnstile、帳號年齡送審 | 已緩解 |
 | 耗盡 Cloudflare API 額度 | 讀取一律走 DB；worker 以 `CLOUDFLARE_RPS` 節流；紀錄寫入每人每分 10 / 每時 60 | 已緩解 |
+| 耗盡 Lazco 每日批次額度（每個 zone 每天 90 批），讓所有人的變更延到隔天 | worker 自己聚合批次：額度平均分配到一天（今天剩下的時間 ÷ 剩下的額度），使用者寫入再多也不會多送；Dev-in 最多用 80 批，保留餘裕給人工操作；送出前預先驗證，避免壞資料讓整批失敗而浪費額度；Lazco 回報上限時暫停到下一個 UTC 日並告警 | 已緩解（有 Lazco 面板權限的人仍能用掉額度） |
 | Cookie bombing：子網域對 `.dev-in.tw` 種大量 cookie，讓受害者對主站的請求超過標頭上限 | 只能靠 PSL 根治 | 外部 |
 | 量體型 DDoS | Cloudflare（目前）；搬家後需 Traefik 層限流或 CrowdSec（程式碼外） | 外部 |
 
@@ -136,7 +140,8 @@ api ──HTTPS──▶ GitHub OAuth / REST、Cloudflare Turnstile、四個固�
 | CSP、COOP、CORP 等 | 由應用程式送 | 同左 |
 | 限流 | 應用層 token bucket（不依賴 Cloudflare） | 同左；建議另外在 Traefik 加一層 |
 | Body 上限 | 應用層 32 KiB | 同左；建議 Traefik `buffering` 也設上限 |
-| 憑證 | Cloudflare edge + Traefik Let's Encrypt | Traefik Let's Encrypt |
+| 憑證 | Cloudflare edge + Traefik Let's Encrypt | Traefik Let's Encrypt（`www`、`api` 也由 Traefik 以 HTTP-01 簽發） |
+| `www`／`api` 轉址 | Cloudflare | web 的 proxy 依 Host：`www` → 301 apex、`api` → 302 `/api/docs`，只比對固定網域，不反射任意 Host |
 | 量體型 DDoS | Cloudflare | 無，需要另外規劃 |
 
 ## 6. 假設
@@ -147,6 +152,7 @@ api ──HTTPS──▶ GitHub OAuth / REST、Cloudflare Turnstile、四個固�
 3. PostgreSQL 只在 Dokploy 的內部網路上。
 4. API replicas = 1（限流與 SSE 名額存在記憶體）；擴充時要改用 PG 或 Redis。
 5. Cloudflare API token 只有 `Zone:DNS:Edit` + `Zone:Read`、只限 `dev-in.tw`，並開啟 Client IP filtering。
+   Lazco API token 只限 `dev-in.tw` 這個 zone（cloud-backend 限定 zone 的 token）。
 
 ## 7. 殘餘風險
 
@@ -163,6 +169,8 @@ api ──HTTPS──▶ GitHub OAuth / REST、Cloudflare Turnstile、四個固�
 | R9 | 既有 CI job 的 actions 仍以 tag 釘版本。 | 新增的 workflow 已用 SHA；既有 `checks` job 屬 WP0，建議由擁有者一併改成 SHA（Dependabot 會維護）。 |
 | R10 | 管理員只有 GitHub 一個因子。 | 依賴 GitHub 帳號的 2FA / passkey；P2 加 WebAuthn step-up。 |
 | R11 | SSE 每個來源 IP（IPv6 以 /64 計）最多 20 條連線。臺灣行動網路大量使用 CGNAT，同一個 IPv4 後面的使用者多時可能拿到 429，儀表板會退回「離線」並以退避重連。 | 只影響即時更新，不影響操作；必要時調整 `EVENTS_MAX_PER_IP`（`apps/api/src/http/middleware/rate-limit.ts`）。 |
+| R12 | Lazco 模式的所有權存在 DB（`dns_provider_ownership`）而不是 provider 上。所有權列遺失時，Dev-in 寫過的值會變成 unmanaged，需要人工清理；label 可能被匯入成保留字。 | 寧可多保留、不可誤刪；對帳仍會依 DB 期望值認出現存紀錄。 |
+| R13 | Lazco 的每日批次上限與人工操作共用：有人在 Lazco 面板大量修改時，Dev-in 的變更會延到下一個 UTC 日。 | 額度保留 10 批；暫停時告警，`/status` 顯示 degraded。 |
 
 ## 8. 安全需求（可驗證）
 
@@ -180,7 +188,10 @@ api ──HTTPS──▶ GitHub OAuth / REST、Cloudflare Turnstile、四個固�
 6. 限流 IPv6 以 /64 計、bucket 數有上限（`security-ratelimit.test.ts`）。
 7. SSE 名額與 session 重新驗證（`security-events.test.ts`）。
 8. DNS 目標與名稱規則（`packages/dns/test/security-rules.test.ts`、`ip-rules.test.ts`、`record-rules.test.ts`）。
-9. 對帳的大量刪除煞車與 `SYSTEM_RECORD_NAMES`（`reconcile.test.ts`、`security-abuse.test.ts`）。
+9. 對帳的大量刪除煞車與 `SYSTEM_RECORD_NAMES`（`reconcile.test.ts`、`security-abuse.test.ts`）；Lazco 模式下同樣成立，
+   且批次只移除批次內工作擁有的值、保留外來的值（`lazco-reconcile.test.ts`、`lazco-batch.test.ts`、`lazco-provider.test.ts`）。
+12. 沒有 Cloudflare 代理時（`TRUST_CLOUDFLARE` 預設 `false`）偽造的 `CF-Connecting-IP` 不生效（`security.test.ts`）；
+    `www`／`api` 的轉址只比對固定網域（`apps/web/test/proxy-redirect.test.ts`、`apps/web/e2e/host-redirect.spec.ts`）。
 10. 接管偵測只查固定 resolver、兩個都 NXDOMAIN 才通知（`security-takeover.test.ts`）。
 11. 個資控制（隱私權政策 v1.1）：日誌與告警不含 email / 原始 IP（`privacy-logging.test.ts`）、檢舉保存期限
     （`privacy-retention.test.ts`）、刪除帳號在 purge 失敗後仍會完成（`privacy-deletion.test.ts`）、同意紀錄

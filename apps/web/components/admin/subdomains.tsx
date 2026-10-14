@@ -137,8 +137,8 @@ export function AdminSubdomains() {
         }
         description={
           target?.kind === "suspend"
-            ? "Cloudflare 上的紀錄會撤下，資料庫保留；解除時會重新同步。"
-            : "紀錄會重新同步到 Cloudflare。"
+            ? "DNS 上的紀錄會撤下，資料庫保留；解除時會重新同步。"
+            : "紀錄會重新同步到 DNS 供應商。"
         }
         confirmLabel={target?.kind === "suspend" ? "停權" : "解除停權"}
         required={target?.kind === "suspend"}

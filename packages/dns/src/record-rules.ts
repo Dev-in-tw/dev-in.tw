@@ -7,6 +7,7 @@ import {
 } from "@dit/contract";
 import { findConflicts } from "./conflicts.ts";
 import { describeNonPublicIPv4, describeNonPublicIPv6, isIPAddress } from "./ip-rules.ts";
+import { type DnsProviderKind, providerViolations } from "./provider-rules.ts";
 import type { Violation } from "./types.ts";
 import { type Verdict, verdictOf } from "./types.ts";
 
@@ -18,6 +19,8 @@ export interface RecordContext {
   /** 用來允許 CNAME 指向自己的其他子網域 */
   ownedSubdomains: readonly string[];
   allowedTypes: readonly RecordType[];
+  /** 寫入的 DNS provider：有額外限制的 provider（Lazco DNS）會多檢查 `providerViolations` */
+  provider?: DnsProviderKind;
 }
 
 export const MAX_FQDN_LENGTH = 253;
@@ -276,7 +279,7 @@ function checkData(input: RecordInput, fqdn: string, ctx: RecordContext, out: Vi
  *
  * violation 的 code 盡量對應合約的 ErrorCode（IP_NOT_PUBLIC、RECORD_TYPE_NOT_ALLOWED、
  * RECORD_TARGET_NOT_ALLOWED、RECORD_CONFLICT、RECORD_DUPLICATE），其餘為 VALIDATION_FAILED。
- * 順序固定為：類型 → 名稱 → TTL → 資料 → 衝突，API 以第一個 violation 決定 Problem.code。
+ * 順序固定為：類型 → 名稱 → TTL → 資料 → provider 限制 → 衝突，API 以第一個 violation 決定 Problem.code。
  */
 export function validateRecord(input: RecordInput, ctx: RecordContext): Verdict {
   if (!ctx.allowedTypes.includes(input.type)) {
@@ -319,6 +322,7 @@ export function validateRecord(input: RecordInput, ctx: RecordContext): Verdict 
     });
   }
   checkData(input, fqdn, ctx, violations);
+  if (ctx.provider) violations.push(...providerViolations(input, ctx.provider));
   if (nameOk) violations.push(...findConflicts(input, ctx.existing));
   return verdictOf(violations);
 }

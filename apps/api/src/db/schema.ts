@@ -243,6 +243,21 @@ export const settings = pgTable("settings", {
   updatedAt: tz("updated_at").notNull().defaultNow(),
 });
 
+/** Lazco DNS 的所有權紀錄（沒有 comment 的 provider 用，migration 0003） */
+export const dnsProviderOwnership = pgTable(
+  "dns_provider_ownership",
+  {
+    zone: text("zone").notNull(),
+    providerId: text("provider_id").notNull(),
+    fqdn: text("fqdn").notNull(),
+    type: text("type").notNull(),
+    recordId: uuid("record_id").notNull(),
+    createdAt: tz("created_at").notNull().defaultNow(),
+    updatedAt: tz("updated_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.zone, t.providerId] })],
+);
+
 export type UserRow = typeof users.$inferSelect;
 export type SessionRow = typeof sessions.$inferSelect;
 export type SubdomainRow = typeof subdomains.$inferSelect;
