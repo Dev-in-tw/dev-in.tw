@@ -1,4 +1,5 @@
 import { acceptLegal } from "../../modules/identity/consent.ts";
+import { exportFilename, exportMyData } from "../../modules/identity/export.ts";
 import {
   deleteMe,
   getMe,
@@ -40,6 +41,20 @@ export function meRoutes(reg: Registry): void {
     {
       rateLimits: [RULES.consent],
     },
+  );
+  define(
+    reg,
+    "exportMyData",
+    async ({ c, user, actor }) => {
+      const deps = c.get("deps");
+      const data = await exportMyData(deps, user, actor);
+      c.header(
+        "Content-Disposition",
+        `attachment; filename="${exportFilename(user, deps.clock.now())}"`,
+      );
+      return data;
+    },
+    { rateLimits: [RULES.dataExport] },
   );
   define(reg, "listMyActivity", ({ c, user, query }) => listMyActivity(c.get("deps"), user, query));
 }

@@ -319,6 +319,8 @@ describe.skipIf(!pgAvailable)("contract consistency", () => {
     await alice("revokeOtherSessions");
     await expectCode(contractClient(t, second)("getMe"), "UNAUTHENTICATED");
     await alice("events");
+    const exported = await alice("exportMyData");
+    expect(exported.account.githubLogin).toBe("alice");
     await expectCode(
       alice("releaseSubdomain", { params: { name: "alice-blog" }, body: { confirm: "wrong" } }),
       "CONFIRMATION_MISMATCH",

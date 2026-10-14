@@ -38,6 +38,8 @@ export const RULES = {
   report: { scope: "report", capacity: 5, refill: 5, perMs: HOUR_MS, by: "ip" },
   /** 轉移邀請會通知對方，也能用來試探某個 GitHub 帳號有沒有用過本站 */
   transfer: { scope: "transfer", capacity: 10, refill: 10, perMs: HOUR_MS, by: "user" },
+  /** 個人資料匯出：查詢量大、內容含 IP，每人每小時 3 次 */
+  dataExport: { scope: "data-export", capacity: 3, refill: 3, perMs: HOUR_MS, by: "user" },
   consent: { scope: "consent", capacity: 10, refill: 10, perMs: HOUR_MS, by: "user" },
 } as const satisfies Record<string, RateRule>;
 
