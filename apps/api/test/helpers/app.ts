@@ -83,7 +83,12 @@ export interface TestContext {
 }
 
 export async function setupTestApp(
-  opts: { env?: Record<string, string>; seed?: boolean; app?: AppOptions } = {},
+  opts: {
+    env?: Record<string, string>;
+    seed?: boolean;
+    app?: AppOptions;
+    logger?: ReturnType<typeof createLogger>;
+  } = {},
 ): Promise<TestContext> {
   const database = await createTestDatabase();
   const config = loadConfig(testEnv(database.url, opts.env));
@@ -99,7 +104,8 @@ export async function setupTestApp(
   });
   const github = new FakeGithub();
   const doh = new FakeDoh();
-  const logger = process.env.TEST_LOG ? createLogger(process.env.TEST_LOG) : silentLogger;
+  const logger =
+    opts.logger ?? (process.env.TEST_LOG ? createLogger(process.env.TEST_LOG) : silentLogger);
   const deps = createDeps(config, database, logger, {
     provider,
     clock,
