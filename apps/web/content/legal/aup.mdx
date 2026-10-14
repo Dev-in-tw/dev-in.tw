@@ -1,35 +1,80 @@
-# 使用規範
+> **重點摘要**：`dev-in.tw` 是大家共用的網域。只要有一個人拿來釣魚或發垃圾信，所有人的子網域都可能被瀏覽器或信箱服務標成危險。所以規則不多，但會嚴格執行：不做壞事、不冒充別人、不囤積名稱、不用的紀錄記得刪。看到違規請[檢舉](/report)，發現漏洞請寫信到 security@dev-in.tw。
 
-最後更新：2026 年 10 月 14 日
+本使用規範（下稱「本規範」）由 **Lazco Labs（拉資科科技有限公司，Lazco Corporation）**（下稱「我們」）制定，是 Dev-in.tw [服務條款](/terms)的一部分，適用於所有子網域，以及子網域所指向的網站、服務與內容。
 
-`dev-in.tw` 是給臺灣開發者的共用網域，一個人的濫用可能讓所有人的子網域被瀏覽器或信箱服務標記。所以規則不多，但會嚴格執行。本規範由 **Lazco Labs（拉資科科技有限公司，Lazco Corporation）**制定。
+## 1. 禁止的用途
 
-## 禁止的用途
+你不得利用子網域，或讓子網域指向的服務從事下列行為：
 
-- **釣魚與詐騙**：假冒銀行、政府、電商、平台的登入頁或付款頁，或任何騙取帳號、金錢、個資的內容
-- **惡意程式**：散布惡意軟體、挖礦程式、殭屍網路的命令與控制伺服器（C2）
-- **冒用身分**：冒用他人、企業、品牌或機關的名義
-- **垃圾訊息**：大量寄送垃圾郵件，或為垃圾郵件提供網域
-- **違法內容**：兒少性剝削、侵害著作權或商標、違反中華民國法律的內容
-- **攻擊與濫用**：利用子網域攻擊他人系統、規避安全防護，或對本服務進行自動化灌量
+1. **釣魚與詐騙**：假冒銀行、政府機關、電商、社群平台或任何服務的登入頁、付款頁，或以任何方式騙取帳號、密碼、金錢或個人資料。
+2. **惡意程式**：散布病毒、木馬、勒索軟體、未經同意的挖礦程式，或架設殭屍網路的命令與控制伺服器（C2）。
+3. **冒用身分**：冒用他人、企業、品牌或機關的名義，或讓人誤以為與其有關。
+4. **垃圾訊息**：大量寄送垃圾郵件，或為垃圾郵件提供寄件網域、連結或追蹤用途；偽造寄件者身分。
+5. **違法內容**：兒少性剝削內容、侵害他人著作權或商標權的內容、詐騙、非法賭博、販售違禁品，或其他違反中華民國法律的內容。
+6. **侵害他人**：騷擾、恐嚇、散布他人個人資料（肉搜），或未經同意公開他人私密影像。
+7. **攻擊與濫用**：利用子網域攻擊、掃描或入侵他人系統，發動阻斷服務攻擊，或規避安全防護；以自動化方式大量呼叫本服務、繞過限流，或以多個帳號規避配額、審核與停權。
+8. **影響其他使用者或本服務**：嘗試影響其他子網域或 `dev-in.tw` 本身，例如在上層網域設定 cookie、冒充本服務的頁面，或干擾 DNS 同步。
 
-## 名稱的使用
+## 2. 名稱的規則
 
-- 不得囤積名稱、轉售或出租子網域
-- 不得申請與知名品牌近似、容易讓人誤認的名稱；這類申請會進入人工審核，可能被駁回
-- 不再使用時，請移除 DNS 紀錄或釋出子網域，避免子網域被他人接管
+1. **不得囤積、轉售或出租**子網域。申請了就請拿來用；轉移給別人時不得收取任何對價。
+2. 不得申請容易讓人誤認為知名品牌、機關或本服務官方的名稱。與品牌近似的名稱會進入人工審核，可能被駁回。
+3. 不得使用冒犯、歧視或煽動仇恨的名稱。
+4. 我們可以把新發現的風險名稱加入保留清單。已核發的名稱如果被認定違反本條，我們會先通知你，必要時依第 4 條處理。
 
-## 我們會怎麼處理
+## 3. 設定 DNS 的責任
 
-收到檢舉或主動發現違規時，我們會視情節：
+1. **不用的紀錄請刪除。** 你的子網域如果還指向已經關閉的服務（例如已刪除的 GitHub Pages、Vercel 專案或雲端主機），別人可能接管它並放上惡意內容。發生這種情況時，即使不是你本人所為，我們也會先停權該子網域。
+2. **DNS 紀錄是公開的。** 不要在紀錄（包括 TXT）裡放個人資料、密碼或金鑰。
+3. 如果你用子網域收發 email，請正確設定 SPF、DKIM 與 DMARC，並遵守收件服務的規範。
 
-1. 通知你限期改善
-2. 停權子網域：Cloudflare 上的紀錄立即撤下，資料保留，改善後可以申請解除
-3. 停權帳號並收回所有子網域
-4. 涉及犯罪時，配合執法機關調查
+## 4. 我們怎麼處理違規
 
-釣魚、惡意程式等明顯危害，會直接停權，不另行通知。
+收到檢舉或主動發現違規時，我們會依情節輕重與危害程度處理：
 
-## 檢舉
+1. **通知改善**：寫信到你的 GitHub 已驗證 email（如有），請你在期限內修正。
+2. **停權子網域**：DNS 紀錄從 Cloudflare 撤下，資料保留在系統中。改善後可以申訴，經確認後恢復。
+3. **停權帳號**：登出所有裝置，名下所有子網域一併停權，停權期間無法登入。
+4. **收回子網域或終止服務**：情節重大或屢次違規時適用。
+5. **配合調查**：涉及犯罪時，我們會保存相關紀錄，並依法令配合檢察、司法或警察機關調查。
 
-發現違規請到[檢舉頁](/report)或寫信到 abuse@dev-in.tw。資安漏洞請寫信到 security@dev-in.tw。
+釣魚、惡意程式、子網域被接管等**正在發生的危害**，我們會先停權再通知，不會等你回覆。停權狀態與原因會顯示在控制台。
+
+## 5. 申訴
+
+對處置有疑問，請寫信到 [abuse@dev-in.tw](mailto:abuse@dev-in.tw)，附上子網域名稱、你的 GitHub 帳號名稱與說明（例如已經移除的內容或修正的設定）。我們會重新檢視並回覆結果。
+
+## 6. 檢舉濫用
+
+發現違規的子網域，請使用[檢舉頁](/report)，或寫信到 [abuse@dev-in.tw](mailto:abuse@dev-in.tw)。
+
+- 請提供子網域名稱、違規類別，以及能讓我們確認的說明，例如網址、截圖描述或郵件標頭。
+- 檢舉不需要登入。留下聯絡 email 的話，我們會回覆處理結果。
+- 檢舉資料的處理方式見[隱私權政策](/privacy)。我們不會向被檢舉人透露檢舉人的身分，除非法令要求。
+- 請不要惡意或大量提出不實檢舉；這本身也違反本規範。
+
+## 7. 資安漏洞通報
+
+發現 Dev-in.tw 本身（`dev-in.tw` 網站與 API）的安全漏洞，請寫信到 [security@dev-in.tw](mailto:security@dev-in.tw)，附上重現步驟與影響範圍。我們也在 [security.txt](https://dev-in.tw/.well-known/security.txt) 公布了聯絡方式。
+
+研究漏洞時請遵守下列原則：
+
+- 只用你自己的帳號與子網域測試，不要存取、修改或刪除其他使用者的資料。
+- 不要進行阻斷服務攻擊、大量自動化掃描或社交工程。
+- 在我們修補並同意前，不要公開漏洞細節。
+
+只要你遵守上述原則、出於善意並及時通報，我們不會就你的研究行為對你採取法律行動，並會在修補後依你的意願公開致謝。使用者自己架設的網站不在範圍內，請直接聯絡該子網域的擁有者，或透過檢舉頁回報。
+
+## 修訂紀錄
+
+- v1.0（2026-10-14）：首次公告。
+
+<div lang="en">
+
+## English summary
+
+*This summary is for convenience only. The Traditional Chinese version above is the binding version.*
+
+`dev-in.tw` is a shared domain, so one bad actor can get everyone's subdomains flagged. Do not use your subdomain for phishing, fraud, malware or C2, impersonation, spam, illegal content under Taiwan law, harassment or doxxing, attacks on other systems, or attempts to affect other subdomains or the service itself. Do not squat, sell or rent names, and do not register names that imitate brands, agencies or the service. Remove records that point to services you no longer use to prevent subdomain takeover, and keep personal data out of DNS records, which are public. Depending on severity we may ask you to fix the issue, suspend the subdomain (records are withdrawn but kept), suspend the account, reclaim subdomains, and cooperate with law enforcement as required by law. Active threats are suspended first and notified afterwards. Appeals and abuse reports go to abuse@dev-in.tw or the [report page](/report). Report vulnerabilities in Dev-in.tw itself to security@dev-in.tw; we will not take legal action against good-faith research that follows the rules above.
+
+</div>

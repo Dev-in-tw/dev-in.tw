@@ -1,12 +1,21 @@
 import type { Metadata } from "next";
+import { LegalHeader } from "@/components/legal/header.tsx";
 import Content from "@/content/legal/privacy.mdx";
+import { LEGAL_DOCS } from "@/lib/legal.ts";
+
+const doc = LEGAL_DOCS.privacy;
 
 export const metadata: Metadata = {
-  title: "隱私權政策",
-  description: "Dev-in.tw 只收服務運作需要的資料：我們蒐集什麼、怎麼用、保存多久。",
+  title: doc.title,
+  description: doc.description,
   alternates: { canonical: "/privacy" },
 };
 
 export default function Page() {
-  return <Content />;
+  return (
+    <>
+      <LegalHeader doc={doc} />
+      <Content />
+    </>
+  );
 }

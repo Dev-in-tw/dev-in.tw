@@ -1,12 +1,21 @@
 import type { Metadata } from "next";
+import { LegalHeader } from "@/components/legal/header.tsx";
 import Content from "@/content/legal/aup.mdx";
+import { LEGAL_DOCS } from "@/lib/legal.ts";
+
+const doc = LEGAL_DOCS.aup;
 
 export const metadata: Metadata = {
-  title: "使用規範",
-  description: "Dev-in.tw 的使用規範：禁止釣魚、惡意程式、冒用與垃圾訊息。",
+  title: doc.title,
+  description: doc.description,
   alternates: { canonical: "/aup" },
 };
 
 export default function Page() {
-  return <Content />;
+  return (
+    <>
+      <LegalHeader doc={doc} />
+      <Content />
+    </>
+  );
 }
