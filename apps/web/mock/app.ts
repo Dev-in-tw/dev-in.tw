@@ -527,7 +527,6 @@ const handlers: { [N in EndpointName]: Handler<N> } = {
   exportMyData: (ctx) => {
     const u = me(ctx);
     const owned = state.subdomains.filter((s) => s.ownerId === u.id);
-    const mine = new Set(owned.map((s) => s.name));
     return {
       body: {
         format: "dev-in.tw/user-data-export@1",
