@@ -62,14 +62,32 @@ export const wideLog = (): MiddlewareHandler<AppEnv> => async (c, next) => {
   else deps.logger.info(line, "request");
 };
 
-export const securityHeaders = (): MiddlewareHandler<AppEnv> => async (c, next) => {
-  await next();
-  c.header("X-Content-Type-Options", "nosniff");
-  c.header("Referrer-Policy", "strict-origin-when-cross-origin");
-  c.header("Cross-Origin-Resource-Policy", "same-origin");
-  c.header("X-Frame-Options", "DENY");
-  if (!c.res.headers.has("Cache-Control")) c.header("Cache-Control", "no-store");
-};
+/** API 回應（JSON、problem+json、SSE）不需要載入任何資源，也不該被嵌入或當成文件執行 */
+export const API_CSP =
+  "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
+/**
+ * /api/docs（Scalar）從 CDN 載入第三方腳本。用 CSP sandbox（不給 allow-same-origin）讓它跑在
+ * opaque origin：讀不到 cookie、送出的請求 Origin 是 null（寫入會被 CSRF 擋下），就算 CDN 上的套件
+ * 被竄改，也碰不到 dev-in.tw 的 session。
+ */
+export const DOCS_CSP =
+  "sandbox allow-scripts allow-popups; frame-ancestors 'none'; base-uri 'none'; object-src 'none'; form-action 'none'";
+export const HSTS = "max-age=63072000";
+
+export const securityHeaders =
+  (opts: { hsts?: boolean; docsPath?: string } = {}): MiddlewareHandler<AppEnv> =>
+  async (c, next) => {
+    await next();
+    c.header("X-Content-Type-Options", "nosniff");
+    c.header("Referrer-Policy", "strict-origin-when-cross-origin");
+    c.header("Cross-Origin-Resource-Policy", "same-origin");
+    c.header("Cross-Origin-Opener-Policy", "same-origin");
+    c.header("X-Frame-Options", "DENY");
+    c.header("Content-Security-Policy", c.req.path === opts.docsPath ? DOCS_CSP : API_CSP);
+    // 不加 includeSubDomains 與 preload：使用者子網域不一定有 HTTPS（PLAN §6 Q14）
+    if (opts.hsts) c.header("Strict-Transport-Security", HSTS);
+    if (!c.res.headers.has("Cache-Control")) c.header("Cache-Control", "no-store");
+  };
 
 /** 請求 body 上限：最大的合法 body（2,048 字元的 TXT、2,000 字的檢舉內容）都遠小於這個值 */
 export const MAX_BODY_BYTES = 32 * 1024;
