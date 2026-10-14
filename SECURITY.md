@@ -31,7 +31,7 @@ Dev-in.tw 由 Lazco Labs（拉資科科技有限公司，Lazco Corporation）組
 | 修補上線：Medium / Low | 90 天內，或併入下一次例行更新 |
 
 修補上線後，我們會和通報者協調公開時間（預設在修補後 30 天、或通報後 90 天，以較早者為準），並在
-GitHub Security Advisory 中致謝。我們是小型、非營利性質的服務，**目前沒有漏洞獎金**。
+GitHub Security Advisory 中致謝。Dev-in.tw 是免費服務，**目前沒有漏洞獎金**。
 
 ## 範圍
 

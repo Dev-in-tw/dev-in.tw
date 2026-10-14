@@ -160,6 +160,7 @@ api ──HTTPS──▶ GitHub OAuth / REST、Cloudflare Turnstile、四個固�
 | R8 | GitHub login 可改名與回收；轉移邀請以 login 找人，若對方改名後未再登入，邀請會送到舊資料對應的帳號。 | 接受者必須是 Dev-in.tw 既有使用者並自行接受；影響有限。 |
 | R9 | 既有 CI job 的 actions 仍以 tag 釘版本。 | 新增的 workflow 已用 SHA；既有 `checks` job 屬 WP0，建議由擁有者一併改成 SHA（Dependabot 會維護）。 |
 | R10 | 管理員只有 GitHub 一個因子。 | 依賴 GitHub 帳號的 2FA / passkey；P2 加 WebAuthn step-up。 |
+| R11 | SSE 每個來源 IP（IPv6 以 /64 計）最多 20 條連線。臺灣行動網路大量使用 CGNAT，同一個 IPv4 後面的使用者多時可能拿到 429，儀表板會退回「離線」並以退避重連。 | 只影響即時更新，不影響操作；必要時調整 `EVENTS_MAX_PER_IP`（`apps/api/src/http/middleware/rate-limit.ts`）。 |
 
 ## 8. 安全需求（可驗證）
 
@@ -167,8 +168,8 @@ api ──HTTPS──▶ GitHub OAuth / REST、Cloudflare Turnstile、四個固�
 
 1. 所有寫入請求：`Origin == APP_ORIGIN`，`Sec-Fetch-Site ∈ {same-origin, 缺少}`，有 body 時必須是 JSON
    （`apps/api/test/security.test.ts`）。
-2. Cookie 一律 `__Host-`、`HttpOnly`、`Secure`、`SameSite=Lax`、`Path=/`、沒有 `Domain`；同名 cookie 重複時視為無效
-   （`security.test.ts`、`security-session.test.ts`）。
+2. Cookie 一律 `__Host-`、`HttpOnly`、`Secure`、`SameSite=Lax`、`Path=/`、沒有 `Domain`；同名 cookie 重複時視為無效，
+   web 的 SSR 必須原樣轉發 Cookie header（`security.test.ts`、`security-session.test.ts`、`apps/web/test/server-api.test.ts`）。
 3. Admin 權限每個請求依 `ADMIN_GITHUB_IDS` 判定（`security-session.test.ts`）。
 4. `/v1/*` 的 body 不超過 32 KiB（`security-body.test.ts`）。
 5. API 回應帶 `default-src 'none'` 的 CSP、COOP、CORP、`no-store`、HSTS 且不含 `includeSubDomains` / `preload`；
