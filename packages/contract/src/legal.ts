@@ -7,9 +7,9 @@
  * version 改變後，已登入的使用者下次操作時會被要求重新同意（`Me.consentRequired`）。
  */
 export const LEGAL_DOCUMENTS = {
-  terms: { version: "1.0", effective: "2026-10-14" },
+  terms: { version: "1.1", effective: "2026-10-14" },
   privacy: { version: "1.2", effective: "2026-10-14" },
-  aup: { version: "1.1", effective: "2026-10-14" },
+  aup: { version: "1.2", effective: "2026-10-14" },
 } as const;
 
 export type LegalDocumentId = keyof typeof LEGAL_DOCUMENTS;
