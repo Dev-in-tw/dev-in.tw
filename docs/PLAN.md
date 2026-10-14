@@ -2254,3 +2254,9 @@ export function toZoneLine(r: DnsRecord): string;    // "www  300  IN  CNAME  al
 | 其餘 | 6、7、9–19、21–24 | 全部採用 §6 的建議預設值。 |
 
 部署環境：Lazco Dokploy（`dokploy.lazco.tw`）的「Dev-in.tw」專案；GitHub provider「Dev-in.tw」（githubId `8A9w8Z46RzB7v4u9bxAQZ`）已安裝於 Dev-in-tw 組織；機密放在 Lazco Infisical 的「Dev-in.tw」專案（`0ecf25d9-dcd0-4902-9a1f-0fa4fd8dfee0`），Dokploy 以 vault provider `dev-in-tw` 引用（`${{vault.dev-in-tw.KEY}}`）。
+
+### 7.1 後續決定（2026-10-14）
+
+- **平台信箱轉寄目的地：`contact@lazco.tw`**。`abuse@dev-in.tw`、`security@dev-in.tw`、`hello@dev-in.tw` 三個都轉寄到這一個信箱（不是個人信箱）。
+- **DNS 代管**：dev-in.tw 將從 Cloudflare 整個搬到 **Lazco DNS**（擁有者考量 Cloudflare 的用量限制）。搬遷前需評估 Lazco DNS 的 API 與限制，並替代原本依賴 Cloudflare 的功能（代理、轉址規則、Email Routing）。搬遷期間安全設計不可綁定 Cloudflare。
+- 法務文件（條款、隱私權政策、使用規範）定稿，營運主體 Lazco Labs（拉資科科技有限公司，Lazco Corporation）。
