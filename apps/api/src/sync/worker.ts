@@ -237,7 +237,7 @@ export class SyncWorker {
     const now = clock.now();
     const due = await dueSummary(db, now);
     if (due.count === 0) return 0;
-    const schedule = await currentSchedule(this.#deps, writer);
+    const schedule = await currentSchedule(this.#deps, writer, now);
     if (!schedule || schedule.nextAt > now) return 0;
     const quiet = !due.newest || now.getTime() - due.newest.getTime() >= BATCH_QUIET_MS;
     const waited = !due.oldest || now.getTime() - due.oldest.getTime() >= BATCH_MAX_WAIT_MS;
@@ -427,7 +427,7 @@ export class SyncWorker {
       touched.add(`${fqdnOf(u.record.name, u.sub.name, root).toLowerCase()}|${u.record.type}`);
     }
     const now = clock.now();
-    const eta = etaFrom(await currentSchedule(this.#deps, writer), now);
+    const eta = etaFrom(await currentSchedule(this.#deps, writer, now), now);
     await db.transaction(async (tx) => {
       await pruneOwnership(tx, zoneKey, touched, present);
       for (const d of deferred) {

@@ -11,13 +11,19 @@ export const BATCH_QUIET_MS = 10 * SECOND;
 /** 但最早的一筆最多只等這麼久（持續有人在改時也會送） */
 export const BATCH_MAX_WAIT_MS = 60 * SECOND;
 
-/** 目前的批次排程；provider 不是批次寫入時回 null */
+/**
+ * 目前的批次排程；provider 不是批次寫入時回 null。
+ *
+ * worker 要傳入它自己的 now：排程的 nextAt 是 max(now, 上一批＋間隔)，閒置之後就等於 now。
+ * 如果這裡再讀一次時鐘，nextAt 會比 worker 的 now 晚幾毫秒，`nextAt > now` 永遠成立，這一批永遠送不出去
+ * （2026-11-02 在 prod 發生；測試的 ManualClock 不會前進，所以測不出來）。
+ */
 export async function currentSchedule(
   deps: Pick<Deps, "provider" | "config" | "clock">,
   writer: RrsetWriter | undefined = deps.provider.rrsets,
+  now: Date = deps.clock.now(),
 ): Promise<BatchSchedule | null> {
   if (!writer) return null;
-  const now = deps.clock.now();
   return batchSchedule(
     now,
     await writer.budget.state(now),
