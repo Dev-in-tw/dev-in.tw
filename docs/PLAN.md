@@ -895,7 +895,7 @@ dev-in.tw 目前仍在 Cloudflare（§7.1）。程式已支援把 zone 搬到 La
 | `LAZCO_DNS_API_URL` | `https://api.lazco.tw` | production 必須是 https |
 | `LAZCO_DNS_TOKEN` | — | 限定 dev-in.tw zone 的 API token；`DNS_PROVIDER=lazco` 時缺值拒絕啟動 |
 | `LAZCO_DNS_ZONE_ID` | — | Lazco 的 zone id；缺值拒絕啟動；對應的 zone 名稱不是 `ROOT_DOMAIN` 時拒絕啟動 |
-| `LAZCO_DNS_DAILY_BATCH_BUDGET` | 80（1–89） | Dev-in 每天最多送幾批；留 10 批給人工操作與誤差 |
+| `LAZCO_DNS_DAILY_BATCH_BUDGET` | 80（0–89） | Dev-in 每天最多送幾批；留 10 批給人工操作與誤差。0 表示沒有每日額度，只用於 Lazco DNS `epoch` serial 模式的 zone（見下方「沒有每日額度的 zone」） |
 | `LAZCO_DNS_MIN_BATCH_INTERVAL_SECONDS` | 60 | 兩批之間的最短間隔（也讓每小時最多約 60 次，低於組織限流 120 次） |
 | `ZONE_RECORD_LIMIT` | — | 改成 RRset 上限（見上表） |
 | `TRUST_CLOUDFLARE` | `false` | 不再有 Cloudflare 代理時必須是 `false` |
@@ -910,6 +910,19 @@ dev-in.tw 目前仍在 Cloudflare（§7.1）。程式已支援把 zone 搬到 La
 - 額度用完（例如有人在 Lazco 面板大量手動修改，Lazco 回 `DNS_DAILY_CHANGE_LIMIT`）時，所有變更暫停到下一個 UTC 日 00:01
   （台灣時間 08:01），使用者看到「預計 … 前生效」，管理員收到 warning。
 - 對帳的孤兒刪除、管理員停權（purge）都吃同一份額度；停權在下一批才會撤下紀錄。
+
+**沒有每日額度的 zone**（2026-11-02，Lazco LAZ-387）
+
+- Lazco DNS 的 operator 可以把一個正解 zone 切到 `epoch` serial 模式（cloud-infra-dns openspec
+  `add-epoch-serials-for-signed-zones`）：serial 改用寫入時間，簽章照常每週輪替，**這個 zone 不再受每天 90 批的上限**。
+  dev-in.tw 在 2026-11-02 01:18 UTC 切換完成。
+- 這時把 `LAZCO_DNS_DAILY_BATCH_BUDGET` 設成 `0`：Dev-in 仍然在每次 PATCH 前記下用量與最後一批的時間，但不再擋，
+  排程的間隔固定是 `LAZCO_DNS_MIN_BATCH_INTERVAL_SECONDS`，永遠不暫停。`/status` 的 `batching.dailyBudget` 是 `0`，
+  狀態頁改寫「沒有每日上限」。
+- 最慢生效時間 ≈ 安靜期 10 秒＋最短間隔。最短間隔要讓每小時的 PATCH 低於 cloud-backend 的 `dns_token_write`
+  每小時 120 次（對帳刪孤兒也算），建議 `40`（每小時最多 90 批）。閒置時第一筆約 10 秒生效。
+- zone 切回 `date` 模式之前，先把額度改回 1–89 再重新部署；否則 Lazco 回 `DNS_DAILY_CHANGE_LIMIT` 時，worker 會依錯誤
+  延到下一個 UTC 日，但 `/status` 不會顯示暫停。
 
 **切換步驟**（Cloudflare → Lazco DNS）
 
@@ -2428,6 +2441,7 @@ export function toZoneLine(r: DnsRecord): string;    // "www  300  IN  CNAME  al
 | 2026-10-14 | contract-v1.2 | 全部是新增性變更：新增 `@dit/contract/legal` 子路徑（`LEGAL_DOCUMENTS`、`CURRENT_LEGAL_VERSIONS`、`isCurrentConsent()`，不依賴 zod，也從 index 匯出），`apps/web/lib/legal.ts` 改從這裡取版本；新增錯誤碼 `CONSENT_REQUIRED`（409）；新增 schema `LegalVersion`、`ConsentContext`、`LegalConsent`、`AcceptLegalBody`、`UserDataExport`（與其子 schema `Export*`、常數 `DATA_EXPORT_FORMAT`）；`Me` 加 optional `consent`、`consentRequired`；`CreateSubdomainBody` 加 optional `termsVersion`、`privacyVersion`，`createSubdomain` 的 errors 加 `CONSENT_REQUIRED`；`startGithubLogin` 的 query 加 optional `termsVersion`、`privacyVersion`；`AdminReport` 加 optional `redactedAt`；新端點 `acceptLegal`（`POST /me/consent`）、`exportMyData`（`GET /me/export`）、`adminRetrySyncJob`（`POST /admin/zone/jobs/{jobId}/retry`，204）；對應 fixtures；`@dit/contract` 版本 1.1.0 → 1.2.0 | 法務審查：隱私權政策承諾的同意紀錄（首次登入、申請子網域、改版後重新同意）、資料下載（個資法第 3 條製給複製本）、檢舉資料的保存期限，以及刪除帳號時卡在 releasing 的子網域需要管理端重新排入清除 | WP-A |
 | 2026-10-14 | contract-v1.3 | 全部是新增性變更：新增 schema `SyncEta`（`IsoDateTime` 或 null）與 `SyncBatching`（`intervalSeconds`、`nextBatchAt`、`lastBatchAt`、`pausedUntil`、`batchesToday`、`dailyBudget`）；`RecordMeta`（因此 `DnsRecord`）加 optional `syncEta`；SSE `record.sync` 加 optional `syncEta`；`ServiceStatus.syncQueue` 加 optional nullable `batching`；`ZoneReport` 加 optional `provider`（`cloudflare`／`memory`／`lazco`）、`usageUnit`（`record`／`rrset`）、nullable `batching`；新增 fixtures `batching`（`record`、`event`、`getStatus`、`adminZone`）；`@dit/contract` 版本 1.2.0 → 1.3.0 | Lazco DNS 每個 zone 每天最多 90 批變更，worker 改成聚合批次（約每 16–18 分鐘一批），前端需要顯示「預計何時生效」；Lazco DNS 以 RRset 計算容量，管理端要知道用量的單位與當日額度（§3.8.1） | WP-A |
 | 2026-10-14 | contract-v1.3.1 | 只改資料、不改 schema：`LEGAL_DOCUMENTS.privacy.version` 1.1 → 1.2（隱私權政策 v1.2：DNS 改由 Lazco DNS 代管、網站不再經過 Cloudflare 代理）；`@dit/contract` 版本 1.3.0 → 1.3.1。**切換到 Lazco DNS 時才合併**；`effective` 請改成實際切換日 | 隱私權政策要反映實際的資料處理者；版本改變後所有使用者下次操作時會被要求重新同意 | WP-A |
+| 2026-11-02 | contract-v1.3.2 | 只改說明、不改 schema：`SyncBatching.dailyBudget` 為 `0` 表示沒有每日額度（`intervalSeconds` 就是最短間隔、`pausedUntil` 永遠是 null）；`@dit/contract` 版本 1.3.1 → 1.3.2 | dev-in.tw 在 Lazco DNS 切到 `epoch` serial 模式，不再受每日 90 批的上限（§3.8.1「沒有每日額度的 zone」） | WP-A |
 
 ---
 

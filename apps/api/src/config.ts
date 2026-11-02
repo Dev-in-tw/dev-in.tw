@@ -79,8 +79,12 @@ const Env = z
     /** 限定 dev-in.tw zone 的 Lazco API token（`lz_live_…`） */
     LAZCO_DNS_TOKEN: optionalString,
     LAZCO_DNS_ZONE_ID: optionalString,
-    /** Lazco DNS 每個 zone 每個 UTC 日最多 90 批（失敗也算）；Dev-in 自己最多用這麼多，留餘裕給人工操作 */
-    LAZCO_DNS_DAILY_BATCH_BUDGET: int(80, 1, 89),
+    /**
+     * Lazco DNS 每個 zone 每個 UTC 日最多 90 批（失敗也算）；Dev-in 自己最多用這麼多，留餘裕給人工操作。
+     * 0 表示沒有每日額度：zone 在 Lazco DNS 的 `epoch` serial 模式（不受每日上限），批次只受
+     * LAZCO_DNS_MIN_BATCH_INTERVAL_SECONDS 限制（PLAN §3.8.1「沒有每日額度的 zone」）
+     */
+    LAZCO_DNS_DAILY_BATCH_BUDGET: int(80, 0, 89),
     /** 兩批之間的最短間隔：一天中前段額度充足時也不會比這更頻繁 */
     LAZCO_DNS_MIN_BATCH_INTERVAL_SECONDS: int(60, 10, 3600),
 

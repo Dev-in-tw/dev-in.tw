@@ -58,7 +58,8 @@ export type SyncEta = z.infer<typeof SyncEta>;
 /**
  * 批次寫入的狀態（contract-v1.3）：DNS provider 有每日批次上限時，worker 把多筆變更聚合成一批送出。
  * intervalSeconds 是目前兩批之間的最短間隔（今天剩下的時間 ÷ 剩下的批次額度）；pausedUntil 是額度
- * 用完時暫停到的時間（下一個 UTC 日）。
+ * 用完時暫停到的時間（下一個 UTC 日）。dailyBudget 為 0 表示沒有每日額度：intervalSeconds 就是最短間隔，
+ * pausedUntil 永遠是 null。
  */
 export const SyncBatching = z.object({
   intervalSeconds: z.int().nonnegative(),

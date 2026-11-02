@@ -76,6 +76,10 @@ describe("config", () => {
     expect(() => loadConfig(lazco({ LAZCO_DNS_API_URL: "http://api.lazco.tw" }))).toThrow(
       /LAZCO_DNS_API_URL/,
     );
+    // 0：zone 在 Lazco DNS 的 epoch serial 模式，沒有每日額度
+    expect(
+      loadConfig(lazco({ LAZCO_DNS_DAILY_BATCH_BUDGET: "0" })).LAZCO_DNS_DAILY_BATCH_BUDGET,
+    ).toBe(0);
     // Lazco DNS 每天 90 批：Dev-in 一定要留餘裕
     expect(() => loadConfig(lazco({ LAZCO_DNS_DAILY_BATCH_BUDGET: "90" }))).toThrow(
       /LAZCO_DNS_DAILY_BATCH_BUDGET/,

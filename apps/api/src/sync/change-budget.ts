@@ -16,6 +16,9 @@ export const nextUtcMidnight = (now: Date): Date =>
  *
  * 保守計算：Lazco DNS 實際上只把「進到 PowerDNS 的變更」算進上限（412、409、驗證錯誤不算），這裡每送出
  * 一次 PATCH 就算一次，所以真正的用量只會比這裡少。
+ *
+ * dailyBudget 為 0 表示沒有每日額度（zone 在 Lazco DNS 的 `epoch` serial 模式）：take() 照樣記下用量與
+ * 最後一批的時間（排程的最短間隔要用），但永遠回傳 true；exhaust() 不做事。
  */
 export class PgChangeBudget implements ChangeBudget {
   readonly dailyBudget: number;
@@ -34,12 +37,13 @@ export class PgChangeBudget implements ChangeBudget {
       values (${this.#zone}, ${utcDay(now)}::date, 1, ${ts(now)})
       on conflict (zone, day) do update
         set used = b.used + 1, last_batch_at = excluded.last_batch_at
-        where b.used < ${this.dailyBudget}
+        where ${this.dailyBudget} = 0 or b.used < ${this.dailyBudget}
       returning b.used`);
-    return rows.length > 0 && this.dailyBudget >= 1;
+    return rows.length > 0;
   }
 
   async exhaust(now: Date): Promise<void> {
+    if (this.dailyBudget === 0) return;
     await this.#db.execute(sql`
       insert into dns_change_budget as b (zone, day, used)
       values (${this.#zone}, ${utcDay(now)}::date, ${this.dailyBudget})
@@ -75,6 +79,7 @@ export const MIDNIGHT_MARGIN_MS = 60_000;
 /**
  * 依今天的用量排定下一批：把剩下的額度平均分配到今天剩下的時間，所以額度永遠不會在 UTC 0 點前用完。
  * 一天開始時（80 批、24 小時）約每 18 分鐘一批；前半天沒什麼變更時，後半天的間隔會縮短。
+ * dailyBudget 為 0（沒有每日額度）時，間隔就是 minIntervalMs，永遠不暫停。
  */
 export function batchSchedule(
   now: Date,
@@ -82,6 +87,20 @@ export function batchSchedule(
   dailyBudget: number,
   minIntervalMs: number,
 ): BatchSchedule {
+  if (dailyBudget === 0) {
+    // 沒有每日額度：只受最短間隔限制
+    const earliest = state.lastBatchAt
+      ? state.lastBatchAt.getTime() + minIntervalMs
+      : now.getTime();
+    return {
+      intervalMs: minIntervalMs,
+      nextAt: new Date(Math.max(now.getTime(), earliest)),
+      lastBatchAt: state.lastBatchAt,
+      pausedUntil: null,
+      usedToday: state.usedToday,
+      dailyBudget,
+    };
+  }
   const midnight = nextUtcMidnight(now);
   const remaining = dailyBudget - state.usedToday;
   if (remaining <= 0) {
