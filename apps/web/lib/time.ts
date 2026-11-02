@@ -34,9 +34,12 @@ export function syncEtaLabel(iso: string, now = Date.now()): string {
   return `預計 ${sameDay ? timeOnly.format(at) : formatDateTime(iso)} 前生效`;
 }
 
-/** 一律以台北時間顯示（zone file 風格：2026/10/14 16:00） */
+/**
+ * 一律以台北時間顯示（zone file 風格：2026/10/14 16:00）。ICU 版本不同時，日期與時間之間可能是 U+202F
+ * 之類的特殊空白，一律換成一般空白，讓每個環境的輸出相同。
+ */
 export function formatDateTime(iso: string): string {
-  return dateTime.format(new Date(iso));
+  return dateTime.format(new Date(iso)).replace(/\s/gu, " ");
 }
 
 export function formatDate(iso: string): string {
