@@ -149,6 +149,14 @@ export function StatusBoard() {
 /** DNS 供應商有每日批次上限時（Lazco DNS），變更會聚合成批次寫入 */
 function BatchingNote({ batching }: { batching: SyncBatching }) {
   const paused = batching.pausedUntil && Date.parse(batching.pausedUntil) > Date.now();
+  if (batching.dailyBudget === 0) {
+    return (
+      <p className="text-sm text-ink-muted" data-testid="sync-batching">
+        DNS 變更沒有每日上限，連續編輯會在安靜 10 秒後合併寫入，兩批之間至少間隔{" "}
+        {batching.intervalSeconds} 秒。
+      </p>
+    );
+  }
   return (
     <p className="text-sm text-ink-muted" data-testid="sync-batching">
       DNS 變更以批次寫入，約每 {Math.max(1, Math.round(batching.intervalSeconds / 60))}{" "}

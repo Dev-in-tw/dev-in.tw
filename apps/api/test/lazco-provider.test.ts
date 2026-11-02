@@ -326,6 +326,16 @@ describe("batchSchedule", () => {
     ).toBe(60_000);
   });
 
+  it("with no daily budget, waits only the minimum interval and never pauses", () => {
+    const s = batchSchedule(day(0), { usedToday: 500, lastBatchAt: day(0) }, 0, 40_000);
+    expect(s.intervalMs).toBe(40_000);
+    expect(s.nextAt).toEqual(new Date(day(0).getTime() + 40_000));
+    expect(s.pausedUntil).toBeNull();
+    const idle = batchSchedule(day(23, 59), { usedToday: 5000, lastBatchAt: day(1) }, 0, 40_000);
+    expect(idle.nextAt).toEqual(day(23, 59));
+    expect(idle.pausedUntil).toBeNull();
+  });
+
   it("pauses until just after the next UTC midnight when the budget is spent", () => {
     const s = batchSchedule(day(20), { usedToday: 80, lastBatchAt: day(19) }, 80, 60_000);
     expect(s.pausedUntil?.toISOString()).toBe("2026-10-15T00:01:00.000Z");

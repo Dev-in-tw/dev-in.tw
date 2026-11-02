@@ -15,7 +15,10 @@ export interface Lazco {
 }
 
 /** 假 Lazco DNS + DNS_PROVIDER=lazco 的完整 API（真 DB、ManualClock） */
-export async function setupLazco(login_ = "lz-owner"): Promise<Lazco> {
+export async function setupLazco(
+  login_ = "lz-owner",
+  configOverrides: Record<string, unknown> = {},
+): Promise<Lazco> {
   let fake: FakeLazcoDns | undefined;
   let provider: LazcoDnsProvider | undefined;
   const t = await setupTestApp({
@@ -25,6 +28,7 @@ export async function setupLazco(login_ = "lz-owner"): Promise<Lazco> {
       LAZCO_DNS_ZONE_ID: ZONE,
       LAZCO_DNS_TOKEN: "lz_live_test_token",
       ZONE_RECORD_LIMIT: 500,
+      ...configOverrides,
     },
     provider: ({ db, clock, config }) => {
       fake = new FakeLazcoDns({ zoneId: ZONE, now: () => clock.now() });

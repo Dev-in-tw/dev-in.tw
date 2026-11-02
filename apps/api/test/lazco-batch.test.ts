@@ -268,3 +268,50 @@ describe.skipIf(!pgAvailable)("lazco dns: batched sync", () => {
     expect(hold?.reason).toBe("released");
   });
 });
+
+describe.skipIf(!pgAvailable)("lazco dns: no daily budget (epoch serial mode)", () => {
+  let z: Lazco;
+  beforeAll(async () => {
+    z = await setupLazco("lz-epoch", {
+      LAZCO_DNS_DAILY_BATCH_BUDGET: 0,
+      LAZCO_DNS_MIN_BATCH_INTERVAL_SECONDS: 40,
+    });
+  });
+  afterAll(() => z.t.close());
+
+  it("sends the next batch after the minimum interval, however many went today", async () => {
+    // 一天已經送了很多批：有每日額度時會暫停，這裡不會
+    for (let i = 0; i < 120; i++) expect(await z.provider.budget.take(z.t.clock.now())).toBe(true);
+    await z.provider.budget.exhaust(z.t.clock.now());
+    z.t.clock.advance(86_400_000);
+    await claim(z.t, z.cookie, "lz-epoch-1");
+    const add = async (address: string) => {
+      z.t.clock.advance(SECOND);
+      const res = await request(z.t, "POST", "/api/v1/subdomains/lz-epoch-1/records", {
+        cookie: z.cookie,
+        body: { type: "A", name: `h${address.split(".").at(-1)}`, ttl: 1, address },
+      });
+      expect(res.status, await res.clone().text()).toBe(202);
+      return (await res.json()) as { id: string };
+    };
+    await add("203.0.114.20");
+    z.t.clock.advance(15 * SECOND);
+    expect(await z.t.worker.tick()).toBe(1);
+    const second = await add("203.0.114.21");
+    z.t.clock.advance(15 * SECOND);
+    // 安靜期過了，但距離上一批還不到 40 秒
+    expect(await z.t.worker.tick()).toBe(0);
+    z.t.clock.advance(30 * SECOND);
+    expect(await z.t.worker.tick()).toBe(1);
+    const [row] = await z.t.deps.sql`select sync_status from dns_records where id = ${second.id}`;
+    expect(row?.sync_status).toBe("synced");
+    const status = (await (await request(z.t, "GET", "/api/v1/status")).json()) as {
+      syncQueue: { batching: { dailyBudget: number; intervalSeconds: number; pausedUntil: null } };
+    };
+    expect(status.syncQueue.batching).toMatchObject({
+      dailyBudget: 0,
+      intervalSeconds: 40,
+      pausedUntil: null,
+    });
+  });
+});
