@@ -48,12 +48,16 @@ export function FieldError({ id, children }: { id?: string; children?: ReactNode
   );
 }
 
+/**
+ * 勾選時填鵲藍並畫白色勾勾（globals.css 的 `checkmark`）。勾勾不能寫成 Tailwind 的任意值背景圖：SVG 裡的空白會把
+ * class 拆開，Tailwind 產生不出規則，tailwind-merge 還會把拆開的第一段當成背景色而刪掉 `checked:bg-magpie`。
+ */
 export function Checkbox({ className, ...props }: Omit<ComponentProps<"input">, "type">) {
   return (
     <input
       type="checkbox"
       className={cn(
-        "size-5 shrink-0 cursor-pointer appearance-none rounded-[4px] border border-field bg-bg transition-colors checked:border-magpie checked:bg-magpie checked:bg-[url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8.5l3 3 6-7' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E\")] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-magpie",
+        "size-5 shrink-0 cursor-pointer appearance-none rounded-[4px] border border-field bg-bg transition-colors checked:border-magpie checked:bg-magpie checked:checkmark focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-magpie",
         className,
       )}
       {...props}
