@@ -279,6 +279,29 @@ describe.skipIf(!pgAvailable)("lazco dns: no daily budget (epoch serial mode)", 
   });
   afterAll(() => z.t.close());
 
+  it("sends a due batch when the clock moves between reads, as a real clock does", async () => {
+    // prod 的時鐘每次讀都會前進：排程若自己再讀一次時鐘，nextAt 會永遠比 worker 的 now 晚一點
+    const clock = z.t.clock;
+    const read = clock.now.bind(clock);
+    clock.now = () => {
+      clock.advance(1);
+      return read();
+    };
+    try {
+      clock.advance(86_400_000);
+      await claim(z.t, z.cookie, "lz-epoch-clock");
+      const res = await request(z.t, "POST", "/api/v1/subdomains/lz-epoch-clock/records", {
+        cookie: z.cookie,
+        body: { type: "A", name: "@", ttl: 1, address: "203.0.114.30" },
+      });
+      expect(res.status, await res.clone().text()).toBe(202);
+      clock.advance(15 * SECOND);
+      expect(await z.t.worker.tick()).toBe(1);
+    } finally {
+      clock.now = read;
+    }
+  });
+
   it("sends the next batch after the minimum interval, however many went today", async () => {
     // 一天已經送了很多批：有每日額度時會暫停，這裡不會
     for (let i = 0; i < 120; i++) expect(await z.provider.budget.take(z.t.clock.now())).toBe(true);
