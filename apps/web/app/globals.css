@@ -214,6 +214,14 @@
   mask-image: radial-gradient(ellipse at 50% 30%, #000 30%, transparent 75%);
 }
 
+/* 勾選框的白色勾勾，搭配 checked:bg-magpie（components/ui/field.tsx 的 Checkbox） */
+@utility checkmark {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8.5l3 3 6-7' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 100% 100%;
+}
+
 @utility print-shadow {
   box-shadow: 4px 4px 0 var(--shadow);
 }
