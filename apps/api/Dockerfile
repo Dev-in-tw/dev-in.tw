@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 # Build context: repository root (docker build -f apps/api/Dockerfile .)
 # Base image pinned by digest (Dependabot keeps it current); runtime and build share it
-FROM node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS base
+FROM node:24-alpine@sha256:44fce696f38ba8c987c4db89954051000bbd05ffd8d8659ba15ed4a8602e937f AS base
 RUN corepack enable
 WORKDIR /repo
 
@@ -18,7 +18,7 @@ COPY apps/api ./apps/api
 # tsdown bundles the workspace packages and every dependency into dist/server.mjs and dist/migrate.mjs
 RUN pnpm --filter @dit/api build
 
-FROM node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS runtime
+FROM node:24-alpine@sha256:44fce696f38ba8c987c4db89954051000bbd05ffd8d8659ba15ed4a8602e937f AS runtime
 ENV NODE_ENV=production PORT=3001
 # The runtime only needs node: drop the package managers that ship with the image
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
